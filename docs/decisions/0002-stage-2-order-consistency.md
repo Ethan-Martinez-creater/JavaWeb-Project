@@ -23,7 +23,7 @@
 
 ### 库存使用可排序的数据库锁与条件更新
 
-订单模块只调用 event application 的 `InventoryService`，不直接访问其 Mapper。其事务内先用非锁定读取定位 event/session，再依序锁 `events FOR SHARE`、`event_sessions FOR SHARE`、`ticket_skus FOR UPDATE`。父活动共享锁允许独立 SKU 预约互相并行，同时与 Stage 1 编辑/发布持有的父行排它锁建立串行边界。拿到锁后重新读取注入的 Clock，并确认活动仍为 PUBLISHED、场次仍未开始。
+订单模块只调用 event application 的 `InventoryService`，不直接访问其 Mapper。其事务内先用非锁定读取定位 event/session，再依序锁 `events FOR SHARE`、`event_sessions FOR SHARE`、`ticket_skus FOR UPDATE`。父活动共享锁彼此兼容，允许独立 SKU 预约互相并行；它与 Stage 1 编辑/发布持有的活动行排它锁互斥，从而建立数据库串行边界。拿到锁后重新读取注入的 Clock，并确认活动仍为 PUBLISHED、场次仍未开始。
 
 最后通过 `available_stock >= 1` 条件 UPDATE 扣减，并检查受影响行数；库存不足返回业务冲突。下单在同一事务中写入价格快照、数量 1 与订单有效期。过期时间为 `min(reservedAt + 15 minutes, session.startsAt)`。应用进程内的锁、先查后无条件写或“测试没有超卖”都不能替代数据库条件。
 

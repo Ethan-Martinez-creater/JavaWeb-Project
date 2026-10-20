@@ -104,12 +104,12 @@ V2 只能追加迁移，禁止修改已发布的 V1。主要关系如下：
 | 方法与路径 | 授权 | 成功语义 | 主要拒绝语义 |
 |---|---|---|---|
 | `POST /api/v1/orders` | USER 或 ADMIN；纯 ORGANIZER 为 403 | 首次幂等键请求 201；相同用户/相同键/相同 SKU 重放 200 并返回同一订单 | 非法请求 400；相同键换 SKU、SKU 不存在/停售/已开场或无库存 409 |
-| `GET /api/v1/orders?page=0&size=20` | 登录用户 | 只分页列出当前主体的订单 | 非法分页 400 |
-| `GET /api/v1/orders/{id}` | 登录用户 | 只返回本人订单、单条明细和票据视图 | 不存在或非本人 404，包括 ADMIN 查询他人 |
-| `POST /api/v1/orders/{id}/pay` | 登录用户 | 本人有效期内的待付订单变为 PAID；重复支付返回同一已付订单 200 | 不存在/非本人 404；过期、已关闭或其它不可支付状态 409；过期支付不会自行关单 |
-| `POST /api/v1/orders/{id}/cancel` | 登录用户 | 待付单关闭并释放一次；重复取消已关闭订单返回同一终态 200 | 不存在/非本人 404；已支付订单 409 |
-| `GET /api/v1/me/tickets?page=0&size=20` | 登录用户 | 只分页列出当前用户拥有且订单已 PAID 的票据与使用状态 | 非法分页 400 |
-| `POST /api/v1/me/tickets/{id}/checkin-code` | 登录用户 | 仅本人、已支付、未使用票可创建或轮换；明文只在本次 `{ticketId,checkinCode}` 响应出现 | 不存在/非本人 404；未支付或已使用 409 |
+| `GET /api/v1/orders?page=0&size=20` | USER 或 ADMIN；纯 ORGANIZER 为 403 | 只分页列出当前主体的订单 | 非法分页 400 |
+| `GET /api/v1/orders/{id}` | USER 或 ADMIN；纯 ORGANIZER 为 403 | 只返回本人订单、单条明细和票据视图 | 不存在或非本人 404，包括 ADMIN 查询他人 |
+| `POST /api/v1/orders/{id}/pay` | USER 或 ADMIN；纯 ORGANIZER 为 403 | 本人有效期内的待付订单变为 PAID；重复支付返回同一已付订单 200 | 不存在/非本人 404；过期、已关闭或其它不可支付状态 409；过期支付不会自行关单 |
+| `POST /api/v1/orders/{id}/cancel` | USER 或 ADMIN；纯 ORGANIZER 为 403 | 待付单关闭并释放一次；重复取消已关闭订单返回同一终态 200 | 不存在/非本人 404；已支付订单 409 |
+| `GET /api/v1/me/tickets?page=0&size=20` | USER 或 ADMIN；纯 ORGANIZER 为 403 | 只分页列出当前用户拥有且订单已 PAID 的票据与使用状态 | 非法分页 400 |
+| `POST /api/v1/me/tickets/{id}/checkin-code` | USER 或 ADMIN；纯 ORGANIZER 为 403 | 仅本人、已支付、未使用票可创建或轮换；明文只在本次 `{ticketId,checkinCode}` 响应出现 | 不存在/非本人 404；未支付或已使用 409 |
 | `POST /api/v1/organizer/tickets/check-in` | ORGANIZER 或 ADMIN；USER 为 403 | 有效核销返回 200 `{ticketId,status,usedAt}`，并在同一事务记录 SUCCESS | 格式不合法或非 canonical 400；无效/旧码或跨主办方 404；未支付、已使用或不在核销窗口返回 `TICKET_CONFLICT` 409 |
 
 下单请求 JSON 固定为 `{skuId,idempotencyKey}`。键正则为 ASCII `[A-Za-z0-9_-]{8,64}`，大小写敏感，不 trim、不改写；相同用户键如果指向不同 SKU 返回 `IDEMPOTENCY_CONFLICT` 409。首次事务若在提交前失败则订单占位、库存扣减和明细整体回滚，键可重新成功。关闭后的旧键重放仍返回原 CLOSED 订单，不创建新单也不扣库存。
@@ -120,13 +120,13 @@ V2 只能追加迁移，禁止修改已发布的 V1。主要关系如下：
 
 订单创建不使用“先 SELECT 再 INSERT”。`OrderService.create` 先以候选 UUID 订单号执行 `INSERT ... ON DUPLICATE KEY UPDATE id=id` 抢 `user_id,idempotency_key` 唯一键，再按用户和键 `SELECT ... FOR UPDATE`。候选订单号相同才代表本次调用创建了占位行；不同则说明并发先行事务已提交，返回现存订单而不再扣库。候选行直到库存、订单总价/到期时间及明细都成功才提交。
 
-库存由 event 模块公开的 `InventoryService` 协调，订单模块不直接调用 event Mapper。顺序为：非锁定读取 SKU 的 event/session 定位 → `events FOR SHARE` → `event_sessions FOR SHARE` → `ticket_skus FOR UPDATE` → 重新读取可信 `Clock` → 校验 PUBLISHED、场次开始时间仍大于 now → `available_stock >= 1` 条件 UPDATE。受影响行数必须为 1。订单/库存/明细处在同一本地 MySQL 事务；任何异常整体回滚。活动父记录共享锁与 S1 编辑/发布持有的父行排它锁兼容序列化。
+库存由 event 模块公开的 `InventoryService` 协调，订单模块不直接调用 event Mapper。顺序为：非锁定读取 SKU 的 event/session 定位 → `events FOR SHARE` → `event_sessions FOR SHARE` → `ticket_skus FOR UPDATE` → 重新读取可信 `Clock` → 校验 PUBLISHED、场次开始时间仍大于 now → `available_stock >= 1` 条件 UPDATE。受影响行数必须为 1。订单/库存/明细处在同一本地 MySQL 事务；任何异常整体回滚。活动父记录共享锁与 S1 编辑/发布持有的活动行排它锁互斥，使预订与活动变更按数据库锁串行化。
 
 预占后 `expiresAt=min(reservedAt+15分钟,session.startsAt)`。金额使用加锁后读取的 SKU 当前价快照。最终库存正确性来自事务、行锁和 `WHERE available_stock >= 1`，不是进程内锁，也不以压力测试成功代替 SQL 不变量。
 
 ### 5.4 支付、取消与过期补偿
 
-支付、取消与到期关闭都先对订单行做 `FOR UPDATE`，并以条件状态 UPDATE 校验转换。`PAID` 与 `CLOSED` 只能由尚未过期的 `PENDING_PAYMENT` 单向进入；关闭只在 `markClosed` 影响一行后释放一张票量。同一订单的并发终态竞争由这条订单行锁序列化：
+支付、取消与到期关闭都先对订单行做 `FOR UPDATE`，并以条件状态 UPDATE 校验转换。`PAID` 只能由尚未过期的 `PENDING_PAYMENT` 进入；`CLOSED` 可由待付款订单经用户取消或到期补偿进入。关闭只在 `markClosed` 影响一行后释放一张票量。同一订单的并发终态竞争由这条订单行锁序列化：
 
 - 支付先取得锁：更新为 PAID、在同一事务调用 `TicketService.issue`，提交后关闭方看到 PAID 并不释放库存。
 - 取消/过期关闭先取得锁：更新 CLOSED、释放库存并提交；支付方随后读到 CLOSED 返回 409，不会签票。
@@ -136,9 +136,10 @@ V2 只能追加迁移，禁止修改已发布的 V1。主要关系如下：
 
 ### 5.5 票据与核销码语义
 
-支付事务调用 `TicketService.issue`（MANDATORY），用订单明细唯一约束保证一单至多一票。生成核销码时用 256 bit 随机值编码为 43 字符 Base64 URL-safe 字符串；只存储 SHA-256 十六进制摘要，原文只在轮换响应一次。仅票主可为已支付且 UNUSED 票创建/轮换码；旋转后旧码不再有效。任何响应和日志不得输出完整明文码，调用方应把它只保存在当前内存流程或安全二维码呈现状态中。
+支付事务调用 `TicketService.issue`（MANDATORY），用订单明细唯一约束保证一单至多一票。生成核销码时用 256 bit 随机值编码为 43 字符 Base64 URL-safe 字符串；只存储 SHA-256 十六进制摘要，原文只在轮换响应一次。仅票主可为已支付且 UNUSED 票创建/轮换码；旋转后旧码不再有效。除本次生成/轮换核销码的成功响应外，其它响应、错误和日志均不得输出完整明文码；调用方应把它只保存在当前内存流程或安全二维码呈现状态中。
 
 核销时间窗为场次开始前 2 小时至结束后 1 小时，含起止边界，时间来自可注入 `Clock`。处理顺序为：验证格式、按摘要定位票、锁定票行、再核对当前摘要，随后验证订单已 PAID、票 UNUSED、操作者是活动主办方或 ADMIN、时间在窗口内；最后原子改为 USED 并写 SUCCESS 记录后提交。先按摘要找票再加锁并复核摘要，可让核销与码轮换竞争时旧码失败。PAID 不可逆，因此资格读取不额外锁订单，避免票行与订单行反向锁序。失败不写 check-in 记录；错误响应不泄漏完整码。
+
 ## 6. Stage 3 中间件规则（仅供设计）
 
 - Redis Cache Aside 用于活动信息热点缓存（读缓存、回源、更新后失效、TTL 和缓存雪崩/穿透基本防护），库存的最终真值仍在 MySQL。

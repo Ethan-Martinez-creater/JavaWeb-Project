@@ -1,6 +1,6 @@
 # EventFlow — 活动票务预约与核销平台
 
-Java 21 / Spring Boot 4.1.1 / MyBatis 的模块化单体。已验收 **Stage 1（PR #2 合并）**：JWT/RBAC、活动草稿、场次与票种、发布和公开查询。**当前正在进行 Stage 2：订单与库存预占、模拟支付、关单、电子票与入场核销**；本轮不引入 Redis、RabbitMQ、Vue。参见 [Stage 2 当前任务书](docs/08-stage-2-codex-task.md)。
+Java 21 / Spring Boot 4.1.1 / MyBatis 的模块化单体。已验收 **Stage 1（PR #2）与 Stage 2（PR #3）**：JWT/RBAC、活动/场次/票种、订单库存预占、模拟支付、超时关单及票据核销。**当前授权 Stage 3：Redis 缓存/限流、RabbitMQ 可靠消息与异步通知**；前端 Vue 留至 Stage 4。参见 [Stage 3 当前任务书](docs/09-stage-3-codex-task.md)。
 
 ## 环境与数据隔离
 

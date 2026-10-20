@@ -1,6 +1,6 @@
-# 领域模型与 REST API 契约（Stage 1/2）
+# 领域模型与 REST API 契约（Stage 1–3）
 
-本文件定义各阶段共有的业务约束。Stage 1 已验收；Stage 2 是当前授权范围，Stage 3/4 仅作设计预留。
+本文件定义各阶段共有的业务约束。Stage 1/2 已验收；Stage 3 当前获授权，Redis/RabbitMQ 具体新契约以 docs/09-stage-3-codex-task.md 为准，Codex 在本阶段提交中更新；Stage 4 暂未授权。
 
 ## 1. 角色与边界
 

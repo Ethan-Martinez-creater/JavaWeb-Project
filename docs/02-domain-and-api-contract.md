@@ -46,7 +46,7 @@
 全部 JSON 字段 camelCase；错误和分页结构见 docs/01-architecture-and-code-style.md。
 
 认证：
-- POST /api/v1/auth/register 公开。请求 {email,password}，固定分配 USER；201，响应用户 id/email/roles；重复 email → 409；密码最少 10 字符，并设置合理最大长度。
+- POST /api/v1/auth/register 公开。请求 {email,password}，固定分配 USER；201，响应用户 id/email/roles；重复 email → 409；密码最少 10 个 Unicode 字符，最多 72 个 UTF-8 字节（BCrypt 上限）。邮箱去除首尾空白后按 Locale.ROOT 转小写。
 - POST /api/v1/auth/login 公开。请求 {email,password}；200，响应 {accessToken,tokenType:"Bearer",expiresInSeconds}；错误帐号或密码统一 401。
 - GET /api/v1/auth/me 需登录。响应 {id,email,roles}。
 - 禁止公开注册设置 role、userId、passwordHash；未知字段不应产生权限提升。
@@ -62,11 +62,15 @@
 - POST /api/v1/organizer/events/{eventId}/sessions，输入 {title,startsAt,endsAt,location}；仅 DRAFT，必须属于本人；201。
 - POST /api/v1/organizer/sessions/{sessionId}/ticket-skus，输入 {name,priceCents,totalStock}；仅相关活动 DRAFT 且本人拥有；201，availableStock = totalStock。
 - POST /api/v1/organizer/events/{eventId}/publish；合法草稿 → 200 PUBLISHED，非法状态/缺少场次/票种 → 409，非法时间输入 → 400。
-- 404/403 的具体归属错误不应泄露他人资源细节；选用一致策略并通过测试证明。
+- S1 对有主办权限但不属于本人的资源统一返回 404（与不存在相同），无主办权限返回 403；ADMIN 可按上述契约管理他人活动，但列表始终只列自己的活动。
 
 ### 统一返回
 
 正常写接口可返回资源 DTO；不必强制每个响应包一层 success/code。POST 创建建议 HTTP 201，Location 可提供资源 URI。异常才使用 {code,message,requestId,timestamp}。
+
+S1 实际响应字段：活动列表 items 为 {id,organizerId,title,description,status,createdAt,updatedAt}；活动详情及活动写接口在上述字段外含 sessions。场次为 {id,eventId,title,startsAt,endsAt,location,ticketSkus}，票种为 {id,sessionId,name,priceCents,totalStock,availableStock}。创建场次/票种分别返回对应 DTO。列表不返回嵌套场次，分页在 SQL 层完成。
+
+未知 JSON 字段一律 400，不把 role、status、organizerId、availableStock 等请求外字段写入数据库。PATCH 可单独提供 title 或 description，至少一项，title 非空白；不支持通过 null 清空字段。关键字按标题的字面子串匹配，LIKE 的 %、_ 作为普通字符转义。requestId 由服务端生成并同时返回在 X-Request-Id 中。
 
 时间一律以带 Z 的 ISO 8601 输入/输出或明确 OffsetDateTime 语义；不接受无时区的歧义时间。
 

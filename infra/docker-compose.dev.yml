@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:8.4.11@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:?Set DB_NAME in the root .env file}
+      MYSQL_USER: ${DB_USERNAME:?Set DB_USERNAME in the root .env file}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the root .env file}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in the root .env file}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - eventflow_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  eventflow_mysql_data:
+    name: eventflow_mysql_data
+

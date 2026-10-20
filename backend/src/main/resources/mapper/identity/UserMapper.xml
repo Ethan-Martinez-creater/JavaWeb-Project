@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eventflow.identity.infrastructure.mapper.UserMapper">
+  <resultMap id="userResultMap" type="com.eventflow.identity.domain.UserEntity">
+    <id property="id" column="id" />
+    <result property="email" column="email" />
+    <result property="passwordHash" column="password_hash" />
+    <result property="status" column="status" />
+  </resultMap>
+
+  <select id="findByEmail" resultMap="userResultMap">
+    SELECT id, email, password_hash, status
+    FROM users
+    WHERE email = #{email}
+    LIMIT 1
+  </select>
+
+  <insert id="insertUser" parameterType="com.eventflow.identity.domain.UserEntity"
+          useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO users (email, password_hash, status, created_at, updated_at)
+    VALUES (#{email}, #{passwordHash}, #{status}, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertRole">
+    INSERT INTO user_roles (user_id, role)
+    VALUES (#{userId}, #{role})
+  </insert>
+
+  <select id="findRolesByUserId" resultType="string">
+    SELECT role
+    FROM user_roles
+    WHERE user_id = #{userId}
+    ORDER BY role
+  </select>
+</mapper>

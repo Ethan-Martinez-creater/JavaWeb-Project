@@ -1,0 +1,4 @@
+app:
+  dev:
+    organizer-email: ${DEV_ORGANIZER_EMAIL:}
+    organizer-password: ${DEV_ORGANIZER_PASSWORD:}

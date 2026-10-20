@@ -72,7 +72,16 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** Stage 2 contract tests against pinned MySQL 8.4 and the real HTTP/security stack. */
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = {
+      "app.orders.expiry-scan-enabled=false",
+      "app.events.cache.enabled=false",
+      "app.rate-limit.orders.enabled=false",
+      "app.messaging.enabled=false",
+      "management.health.redis.enabled=false",
+      "management.health.rabbit.enabled=false"
+    })
 @Import(Stage2IntegrationTest.ClockConfiguration.class)
 class Stage2IntegrationTest {
   private static final String MYSQL_IMAGE =
@@ -118,6 +127,9 @@ class Stage2IntegrationTest {
     if (FRESH_SCHEMA_CHECKED.compareAndSet(0, 1)) {
       verifyFreshV1ToV2Schema();
     }
+    jdbc.execute("DELETE FROM user_notifications");
+    jdbc.execute("DELETE FROM consumed_events");
+    jdbc.execute("DELETE FROM outbox_events");
     jdbc.execute("DELETE FROM checkin_records");
     jdbc.execute("DELETE FROM tickets");
     jdbc.execute("DELETE FROM order_items");

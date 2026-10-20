@@ -1,4 +1,6 @@
-# Codex 执行任务书 — Stage 1（仅此阶段已授权）
+# Codex 执行任务书 — Stage 1（Stage 0 环境预检确认后生效）
+
+**前置门禁：先按 docs/06-environment-preflight.md 做环境预检，获得用户与 ChatGPT 的明确版本确认之后才能开始本任务。不得借预检自动启动 Stage 1。**
 
 ## 目标
 

@@ -4,15 +4,15 @@
 
 ## 项目状态
 
-- 当前：Stage 1 待 Codex 实施；尚无已验收的应用功能。
+- 当前：Stage 0 环境预检（仅版本核对，等待评估）；Stage 1 开发暂缓；尚无已验收的应用功能。
 - 协作：Codex 负责实施；ChatGPT 负责每阶段结束后的集中代码审查；仓库 PR 是唯一交付与审核载体。
 - **禁止未经阶段验收就继续下一阶段，也禁止自行合并阶段 PR。**
 
-## 已确定技术选型
+## 当前预设技术选型（待环境预检确认）
 
 Java 21 · Spring Boot 4.1.1 · MyBatis Spring Boot Starter 4.1.0 · MySQL 8.4 · Redis · RabbitMQ · Spring Security/JWT · Vue 3/Element Plus · Maven · Flyway · Testcontainers · Docker Compose。
 
-技术栈逐步接入，Stage 1 **只引入实际需要**的组件；不预先搭建微服务、Nacos、Seata、Kubernetes 等。
+**预设版本约束针对可复现的项目构建与 Docker 环境，不代表必须在本机重复安装相同版本。** 环境预检结果确认后再决定是否调整。技术栈逐步接入，Stage 1 **只引入实际需要**的组件；不预先搭建微服务、Nacos、Seata、Kubernetes 等。
 
 ## 仓库导航（按阅读顺序）
 
@@ -20,9 +20,10 @@ Java 21 · Spring Boot 4.1.1 · MyBatis Spring Boot Starter 4.1.0 · MySQL 8.4 �
 2. [架构与编码规范](docs/01-architecture-and-code-style.md)
 3. [领域模型与 API 契约](docs/02-domain-and-api-contract.md)
 4. [分阶段路线与审核门禁](docs/03-stage-roadmap-and-gates.md)
-5. [当前 Codex 任务：Stage 1](docs/04-stage-1-codex-task.md)
-6. [Codex 阶段交接模板](docs/05-handoff-template.md)
-7. [自动化协作约束](AGENTS.md)
+5. [当前 Codex 任务：环境预检](docs/06-environment-preflight.md)
+6. [后续 Codex 任务：Stage 1](docs/04-stage-1-codex-task.md)
+7. [Codex 阶段交接模板](docs/05-handoff-template.md)
+8. [自动化协作约束](AGENTS.md)
 
 ## 预期仓库布局
 

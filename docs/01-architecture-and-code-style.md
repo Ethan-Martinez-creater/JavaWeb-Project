@@ -32,10 +32,10 @@
 
 ## 2. 技术版本与工具
 
-- Java 21、Maven Wrapper，Spring Boot 4.1.1、MyBatis Spring Boot Starter 4.1.0、MySQL 8.4（Docker 固定具体镜像 tag）。
+- 当前项目可复现构建基线：Java 21（编译目标）、Maven Wrapper，Spring Boot 4.1.1、MyBatis Spring Boot Starter 4.1.0、MySQL 8.4（默认 Docker 镜像）。**这些不是要求用户的宿主机逐项重复安装的清单。** Stage 0 先盘点现有版本；任何基线变更必须经过评估并同步更新此文档、POM、CI 和 Compose（若已存在）。
 - Stage 1 使用 Spring Web MVC、Spring Security（Resource Server JWT 验证）、Validation、Actuator、Flyway（按版本包含 MySQL 支持模块）、MyBatis、MySQL JDBC。
 - Testcontainers + JUnit 5 + Spring Boot Test；测试连接真实 MySQL，不允许 H2 代替。
-- Stage 3 引入 Redis 和 RabbitMQ；Stage 4 引入 Vue 3 + TypeScript + Element Plus、Docker Compose 完整应用部署。
+- Stage 3 引入 Redis 和 RabbitMQ；Stage 4 引入 Vue 3 + TypeScript + Element Plus、Docker Compose 完整应用部署。MySQL/Redis/RabbitMQ 可优先运行在 Docker 容器，宿主机不必安装服务本体。已有兼容的宿主机数据库可复用，但不得用未验证的数据库版本替代 CI 集成测试目标。
 - **Spring Boot 4.x 模块化 Starter 与测试模块命名可能不同于 3.x 教程，严格以官方依赖及构建成功为准**。不要机械复制旧版配置。
 - Maven 构建应使用明确的、兼容的依赖版本；记录实际解析版本；不使用 SNAPSHOT。
 

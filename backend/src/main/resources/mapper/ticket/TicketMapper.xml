@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eventflow.ticket.infrastructure.TicketMapper">
+  <resultMap id="ticketEntityMap" type="com.eventflow.ticket.domain.TicketEntity">
+    <id property="id" column="id" />
+    <result property="orderItemId" column="order_item_id" />
+    <result property="ownerUserId" column="owner_user_id" />
+    <result property="checkinCodeHash" column="checkin_code_hash" />
+    <result property="status" column="status" />
+    <result property="usedAt" column="used_at" />
+    <result property="createdAt" column="created_at" />
+  </resultMap>
+
+  <resultMap id="ticketProjectionMap" type="com.eventflow.ticket.infrastructure.TicketProjection">
+    <id property="id" column="ticket_id" />
+    <result property="orderItemId" column="order_item_id" />
+    <result property="orderId" column="order_id" />
+    <result property="eventId" column="event_id" />
+    <result property="sessionId" column="session_id" />
+    <result property="skuId" column="sku_id" />
+    <result property="status" column="status" />
+    <result property="usedAt" column="used_at" />
+    <result property="createdAt" column="created_at" />
+  </resultMap>
+
+  <resultMap id="qualificationMap" type="com.eventflow.ticket.infrastructure.TicketQualification">
+    <id property="orderItemId" column="order_item_id" />
+    <result property="orderId" column="order_id" />
+    <result property="ownerUserId" column="owner_user_id" />
+    <result property="eventId" column="event_id" />
+    <result property="organizerId" column="organizer_id" />
+    <result property="sessionId" column="session_id" />
+    <result property="skuId" column="sku_id" />
+    <result property="quantity" column="quantity" />
+    <result property="orderStatus" column="order_status" />
+    <result property="startsAt" column="starts_at" />
+    <result property="endsAt" column="ends_at" />
+  </resultMap>
+
+  <sql id="ticketViewColumns">
+    t.id AS ticket_id,
+    t.order_item_id,
+    oi.order_id,
+    e.id AS event_id,
+    es.id AS session_id,
+    oi.sku_id,
+    t.status,
+    t.used_at,
+    t.created_at
+  </sql>
+
+  <select id="findByIdForUpdate" resultMap="ticketEntityMap">
+    SELECT id, order_item_id, owner_user_id, checkin_code_hash, status, used_at, created_at
+    FROM tickets
+    WHERE id = #{id}
+    FOR UPDATE
+  </select>
+
+  <select id="findByOrderItem" resultMap="ticketEntityMap">
+    SELECT id, order_item_id, owner_user_id, checkin_code_hash, status, used_at, created_at
+    FROM tickets
+    WHERE order_item_id = #{orderItemId}
+    LIMIT 1
+  </select>
+
+  <select id="findQualification" resultMap="qualificationMap">
+    SELECT oi.id AS order_item_id,
+           o.id AS order_id,
+           o.user_id AS owner_user_id,
+           e.id AS event_id,
+           e.organizer_id AS organizer_id,
+           es.id AS session_id,
+           oi.sku_id,
+           oi.quantity,
+           o.status AS order_status,
+           es.starts_at,
+           es.ends_at
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    JOIN ticket_skus sku ON sku.id = oi.sku_id
+    JOIN event_sessions es ON es.id = sku.session_id
+    JOIN events e ON e.id = es.event_id
+    WHERE oi.id = #{orderItemId}
+  </select>
+
+  <select id="findViewByOrderItem" resultMap="ticketProjectionMap">
+    SELECT <include refid="ticketViewColumns" />
+    FROM tickets t
+    JOIN order_items oi ON oi.id = t.order_item_id
+    JOIN ticket_skus sku ON sku.id = oi.sku_id
+    JOIN event_sessions es ON es.id = sku.session_id
+    JOIN events e ON e.id = es.event_id
+    WHERE t.order_item_id = #{orderItemId}
+    LIMIT 1
+  </select>
+
+  <select id="findIdByCodeHash" resultType="long">
+    SELECT id
+    FROM tickets
+    WHERE checkin_code_hash = #{codeHash}
+    LIMIT 1
+  </select>
+
+  <select id="listByOwner" resultMap="ticketProjectionMap">
+    SELECT <include refid="ticketViewColumns" />
+    FROM tickets t
+    JOIN order_items oi ON oi.id = t.order_item_id
+    JOIN ticket_skus sku ON sku.id = oi.sku_id
+    JOIN event_sessions es ON es.id = sku.session_id
+    JOIN events e ON e.id = es.event_id
+    WHERE t.owner_user_id = #{ownerUserId}
+    ORDER BY t.id DESC
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <select id="countByOwner" resultType="long">
+    SELECT COUNT(*)
+    FROM tickets
+    WHERE owner_user_id = #{ownerUserId}
+  </select>
+
+  <insert id="insertTicket">
+    INSERT INTO tickets (order_item_id, owner_user_id, status, created_at, updated_at)
+    VALUES (#{orderItemId}, #{ownerUserId}, 'UNUSED', #{createdAt}, #{createdAt})
+  </insert>
+
+  <update id="rotateCheckinCode">
+    UPDATE tickets
+    SET checkin_code_hash = #{codeHash}, updated_at = #{updatedAt}
+    WHERE id = #{id} AND status = 'UNUSED'
+  </update>
+
+  <update id="markUsed">
+    UPDATE tickets
+    SET status = 'USED', used_at = #{usedAt}, updated_at = #{usedAt}
+    WHERE id = #{id} AND status = 'UNUSED' AND checkin_code_hash = #{codeHash}
+  </update>
+
+  <insert id="insertSuccessRecord">
+    INSERT INTO checkin_records (ticket_id, operator_user_id, result, created_at)
+    VALUES (#{ticketId}, #{operatorUserId}, 'SUCCESS', #{createdAt})
+  </insert>
+</mapper>

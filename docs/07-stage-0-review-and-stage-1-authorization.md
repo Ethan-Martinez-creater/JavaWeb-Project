@@ -2,7 +2,7 @@
 
 ## 审核结论
 
-基于环境盘点 PR #1（head `17e73ff`）、官方兼容性资料及用户提供的信息：**Stage 0 = ACCEPT**。仅涉及环境信息，未做业务实现。PR #1 **尚未合并时不得开始 Stage 1**；用户合并 PR #1 后，Codex 可以按已授权的 Stage 1 任务书完整开发，结束时提交一个 PR 供集中审查。
+基于环境盘点 PR #1（head `17e73ff`）、官方兼容性资料及用户提供的信息：**Stage 0 = ACCEPT**。仅涉及环境信息，未做业务实现。PR #1 已由 ChatGPT 审核通过并合并（merge commit `970a51c`）；Stage 1 已授权，Codex 可以按 Stage 1 任务书完整开发，结束时提交一个 PR 供集中审查。
 
 实际宿主机：Windows 10 Home 19045 x64；本机已存在 JDK 17（默认）及非默认 JDK 21.0.9；Maven 3.8.6；原生 MySQL 5.7.24；Redis 8.4.0 Cygwin；Docker CLI 29.7.2 / Compose 5.3.1，但 daemon 未连通；Node.js 24.15.0、npm 11.12.1、pnpm 11.21.0。
 

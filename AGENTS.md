@@ -1,13 +1,13 @@
 # Instructions for coding agents (Codex)
 
-This repository uses stage-gated delivery. **Stage 0 version review is ACCEPTED. Stage 1 is authorized AFTER preflight PR #1 is merged into main.** First read docs/07-stage-0-review-and-stage-1-authorization.md. Then follow the Stage 1 specs. Do not start from a main branch missing PR #1. Read these files before writing code:
+This repository uses stage-gated delivery. **Stage 0 PR #1 was ACCEPTED and merged. Stage 1 is now authorized.** First read docs/07-stage-0-review-and-stage-1-authorization.md. Then follow the Stage 1 specs. Start from latest main that includes PR #1. Read these files before writing code:
 1. docs/00-project-charter.md
 2. docs/01-architecture-and-code-style.md
 3. docs/02-domain-and-api-contract.md
 4. docs/03-stage-roadmap-and-gates.md
 5. docs/04-stage-1-codex-task.md (Stage 1 only)
 
-## Stage 0 environment preflight exception (current)
+## Stage 0 environment preflight decisions (completed)
 
 - Stage 0 was completed in PR #1 and reviewed. Preserve its report; this block is historical and must not delay Stage 1 once PR #1 has been merged.
 - Reuse existing JDK 21.0.9 for project-local processes via temporary environment variables, Maven 3.8.6 (or compatible committed wrapper), Node 24. Do not globally change Java 17 defaults.
@@ -17,7 +17,7 @@ This repository uses stage-gated delivery. **Stage 0 version review is ACCEPTED.
 
 ## Source of truth / execution
 
-- The documents in main specify product scope, contracts and coding rules. **After preflight PR #1 is merged into main**, work on a feature branch named codex/stage-1-foundation for Stage 1, branching from latest main. Never push feature code directly to main.
+- The documents in main specify product scope, contracts and coding rules. **Now that preflight PR #1 is merged**, work on a feature branch named codex/stage-1-foundation for Stage 1, branching from latest main. Never push feature code directly to main.
 - Complete **only** the authorized stage and all its acceptance criteria. Do not start Stage 2, introduce Redis/RabbitMQ, or create a Vue frontend during Stage 1.
 - You are the implementer, not the reviewer. Do not merge PRs and do not declare a stage approved. Await human/ChatGPT stage-gate review before moving on.
 - You may make normal engineering decisions without frequent questions; record impactful decisions as short ADRs under docs/decisions/. Do not silently change fixed technology/architecture, scope or security constraints.

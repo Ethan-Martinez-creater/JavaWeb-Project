@@ -102,7 +102,7 @@ public class TicketService {
     if (mapper.rotateCheckinCode(ticketId, hash(code), utc(clock.instant())) != 1) {
       throw conflict("The ticket is no longer eligible for a check-in code.");
     }
-    return new CheckinCodeResponse(code);
+    return new CheckinCodeResponse(ticketId, code);
   }
 
   @Transactional

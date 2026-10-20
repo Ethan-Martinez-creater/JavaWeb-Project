@@ -18,7 +18,7 @@ public final class TicketDtos {
       Instant usedAt,
       Instant createdAt) {}
 
-  public record CheckinCodeResponse(String checkinCode) {}
+  public record CheckinCodeResponse(long ticketId, String checkinCode) {}
 
   public record CheckInRequest(
       @NotBlank @Pattern(regexp = "^[A-Za-z0-9_-]{43}$") String checkinCode) {}

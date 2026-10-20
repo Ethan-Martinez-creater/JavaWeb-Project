@@ -89,10 +89,13 @@
     SELECT <include refid="ticketViewColumns" />
     FROM tickets t
     JOIN order_items oi ON oi.id = t.order_item_id
+    JOIN orders o ON o.id = oi.order_id
     JOIN ticket_skus sku ON sku.id = oi.sku_id
     JOIN event_sessions es ON es.id = sku.session_id
     JOIN events e ON e.id = es.event_id
     WHERE t.order_item_id = #{orderItemId}
+      AND o.status = 'PAID'
+      AND o.user_id = t.owner_user_id
     LIMIT 1
   </select>
 
@@ -107,18 +110,25 @@
     SELECT <include refid="ticketViewColumns" />
     FROM tickets t
     JOIN order_items oi ON oi.id = t.order_item_id
+    JOIN orders o ON o.id = oi.order_id
     JOIN ticket_skus sku ON sku.id = oi.sku_id
     JOIN event_sessions es ON es.id = sku.session_id
     JOIN events e ON e.id = es.event_id
     WHERE t.owner_user_id = #{ownerUserId}
+      AND o.status = 'PAID'
+      AND o.user_id = t.owner_user_id
     ORDER BY t.id DESC
     LIMIT #{size} OFFSET #{offset}
   </select>
 
   <select id="countByOwner" resultType="long">
     SELECT COUNT(*)
-    FROM tickets
-    WHERE owner_user_id = #{ownerUserId}
+    FROM tickets t
+    JOIN order_items oi ON oi.id = t.order_item_id
+    JOIN orders o ON o.id = oi.order_id
+    WHERE t.owner_user_id = #{ownerUserId}
+      AND o.status = 'PAID'
+      AND o.user_id = t.owner_user_id
   </select>
 
   <insert id="insertTicket">

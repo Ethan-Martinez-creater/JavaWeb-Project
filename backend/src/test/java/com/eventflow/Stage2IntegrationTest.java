@@ -86,8 +86,7 @@ class Stage2IntegrationTest {
   private static final AtomicInteger FRESH_SCHEMA_CHECKED = new AtomicInteger();
   private static final int CONCURRENCY_WORKERS = 48;
 
-  @Container
-  private static final MySQLContainer<?> MYSQL = mysqlContainer("eventflow_stage2_test");
+  @Container private static final MySQLContainer<?> MYSQL = mysqlContainer("eventflow_stage2_test");
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) {
@@ -201,7 +200,8 @@ class Stage2IntegrationTest {
           }
         }
         try (PreparedStatement statement =
-            connection.prepareStatement("INSERT INTO user_roles(user_id,role) VALUES (?, 'ORGANIZER')")) {
+            connection.prepareStatement(
+                "INSERT INTO user_roles(user_id,role) VALUES (?, 'ORGANIZER')")) {
           statement.setLong(1, userId);
           statement.executeUpdate();
         }
@@ -237,23 +237,28 @@ class Stage2IntegrationTest {
           .load()
           .migrate();
       try (Connection connection =
-          DriverManager.getConnection(
-              upgradeDb.getJdbcUrl(), upgradeDb.getUsername(), upgradeDb.getPassword());
+              DriverManager.getConnection(
+                  upgradeDb.getJdbcUrl(), upgradeDb.getUsername(), upgradeDb.getPassword());
           Statement statement = connection.createStatement()) {
         try (ResultSet result =
             statement.executeQuery(
-                "SELECT COUNT(*) FROM events WHERE id=" + eventId + " AND title='Existing V1 event'")) {
+                "SELECT COUNT(*) FROM events WHERE id="
+                    + eventId
+                    + " AND title='Existing V1 event'")) {
           assertTrue(result.next());
           assertEquals(1L, result.getLong(1));
         }
         try (ResultSet result =
             statement.executeQuery(
-                "SELECT COUNT(*) FROM users WHERE id=" + userId + " AND email='v1-upgrade-fixture@example.test'")) {
+                "SELECT COUNT(*) FROM users WHERE id="
+                    + userId
+                    + " AND email='v1-upgrade-fixture@example.test'")) {
           assertTrue(result.next());
           assertEquals(1L, result.getLong(1));
         }
         try (ResultSet result =
-            statement.executeQuery("SELECT COUNT(*) FROM flyway_schema_history WHERE version='2' AND success=1")) {
+            statement.executeQuery(
+                "SELECT COUNT(*) FROM flyway_schema_history WHERE version='2' AND success=1")) {
           assertTrue(result.next());
           assertEquals(1L, result.getLong(1));
         }
@@ -269,9 +274,7 @@ class Stage2IntegrationTest {
 
   @Test
   void stageTwoSqlIndexesForeignKeysAndChecksAreEnforcedByMysql() throws Exception {
-    assertEquals(
-        1L,
-        countIndex("orders", "uq_orders_user_idempotency", true));
+    assertEquals(1L, countIndex("orders", "uq_orders_user_idempotency", true));
     assertEquals(1L, countIndex("orders", "uq_orders_order_no", true));
     assertEquals(1L, countIndex("orders", "idx_orders_user_id", false));
     assertEquals(1L, countIndex("orders", "idx_orders_expiry", false));
@@ -309,7 +312,10 @@ class Stage2IntegrationTest {
 
     assertThrows(
         DataAccessException.class,
-        () -> jdbc.update("UPDATE ticket_skus SET available_stock=total_stock+1 WHERE id=?", fixture.skuId()));
+        () ->
+            jdbc.update(
+                "UPDATE ticket_skus SET available_stock=total_stock+1 WHERE id=?",
+                fixture.skuId()));
     assertThrows(
         DataAccessException.class,
         () -> jdbc.update("UPDATE order_items SET quantity=2 WHERE id=?", itemId));
@@ -321,10 +327,18 @@ class Stage2IntegrationTest {
         () -> jdbc.update("UPDATE orders SET status='PAID' WHERE id=?", orderId));
     assertThrows(
         DataAccessException.class,
-        () -> jdbc.update("INSERT INTO order_items(order_id,sku_id,price_cents,quantity) VALUES (?,?,100,1)", 999999999L, fixture.skuId()));
+        () ->
+            jdbc.update(
+                "INSERT INTO order_items(order_id,sku_id,price_cents,quantity) VALUES (?,?,100,1)",
+                999999999L,
+                fixture.skuId()));
     assertThrows(
         DataAccessException.class,
-        () -> jdbc.update("INSERT INTO tickets(order_item_id,owner_user_id,status) VALUES (?,?, 'USED')", itemId, user.id()));
+        () ->
+            jdbc.update(
+                "INSERT INTO tickets(order_item_id,owner_user_id,status) VALUES (?,?, 'USED')",
+                itemId,
+                user.id()));
 
     HttpResponse<String> paid =
         call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
@@ -340,14 +354,23 @@ class Stage2IntegrationTest {
   }
 
   @Test
-  void orderCreationValidatesSecurityOwnershipInputAvailabilityAndStableSnapshots() throws Exception {
+  void orderCreationValidatesSecurityOwnershipInputAvailabilityAndStableSnapshots()
+      throws Exception {
     Fixture fixture = publishedFixture("Create and snapshot", 10, 1250);
     HttpResponse<String> anonymous =
         call("POST", "/api/v1/orders", null, orderRequest(fixture.skuId(), "anonymous-key-1"));
     HttpResponse<String> organizerDenied =
-        call("POST", "/api/v1/orders", organizer.token(), orderRequest(fixture.skuId(), "organizer-key-1"));
+        call(
+            "POST",
+            "/api/v1/orders",
+            organizer.token(),
+            orderRequest(fixture.skuId(), "organizer-key-1"));
     HttpResponse<String> adminOrder =
-        call("POST", "/api/v1/orders", admin.token(), orderRequest(fixture.skuId(), "admin-key-0001"));
+        call(
+            "POST",
+            "/api/v1/orders",
+            admin.token(),
+            orderRequest(fixture.skuId(), "admin-key-0001"));
     assertStatus(401, anonymous);
     assertApiError(anonymous);
     assertStatus(403, organizerDenied);
@@ -364,7 +387,13 @@ class Stage2IntegrationTest {
             "POST",
             "/api/v1/orders",
             user.token(),
-            Map.of("skuId", fixture.skuId(), "idempotencyKey", "unknown-field-1", "userId", admin.id()));
+            Map.of(
+                "skuId",
+                fixture.skuId(),
+                "idempotencyKey",
+                "unknown-field-1",
+                "userId",
+                admin.id()));
     HttpResponse<String> unknownSku =
         call("POST", "/api/v1/orders", user.token(), orderRequest(99999999, "missing-sku-001"));
     assertStatus(400, zeroSku);
@@ -407,25 +436,35 @@ class Stage2IntegrationTest {
     assertNotEquals(json(first).path("id").asLong(), json(caseVariant).path("id").asLong());
     assertNotEquals(json(first).path("id").asLong(), json(otherUser).path("id").asLong());
     assertEquals(3L, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Long.class));
-    assertEquals(3, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    assertEquals(
+        3,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
     assertEquals(3L, jdbc.queryForObject("SELECT COUNT(*) FROM order_items", Long.class));
   }
 
   @Test
   void parallelSameUserReplayAndParameterConflictAreSerializedByMysqlUniqueKey() throws Exception {
-    Fixture fixture = twoSkuPublishedFixture("Parallel idem", 8);
+    TwoSkuFixture fixture = twoSkuPublishedFixture("Parallel idem", 8);
     int attempts = 24;
     List<HttpResponse<String>> sameParameter =
         parallelCalls(
             attempts,
             16,
             ignored -> createOrder(user, fixture.firstSkuId(), "same-key-parallel-001"));
-    assertEquals(1L, sameParameter.stream().filter(response -> response.statusCode() == 201).count());
-    assertEquals(23L, sameParameter.stream().filter(response -> response.statusCode() == 200).count());
+    assertEquals(
+        1L, sameParameter.stream().filter(response -> response.statusCode() == 201).count());
+    assertEquals(
+        23L, sameParameter.stream().filter(response -> response.statusCode() == 200).count());
     Set<Long> ids = new HashSet<>();
     sameParameter.forEach(response -> ids.add(json(response).path("id").asLong()));
     assertEquals(1, ids.size());
-    assertEquals(7, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.firstSkuId()));
+    assertEquals(
+        7,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?",
+            Integer.class,
+            fixture.firstSkuId()));
     assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Long.class));
     assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM order_items", Long.class));
 
@@ -464,11 +503,17 @@ class Stage2IntegrationTest {
                 }));
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Long.class));
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM order_items", Long.class));
-    assertEquals(3, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    assertEquals(
+        3,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
 
     HttpResponse<String> retry = createOrder(user, fixture.skuId(), "rollback-key-0001");
     assertStatus(201, retry);
-    assertEquals(2, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    assertEquals(
+        2,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
     assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Long.class));
   }
 
@@ -491,22 +536,38 @@ class Stage2IntegrationTest {
     assertApiError(soldOutOrder);
 
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Long.class));
-    assertEquals(4, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, draft.skuId()));
-    assertEquals(2, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, mixed.skuId()));
-    assertEquals(0, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, soldOut.skuId()));
+    assertEquals(
+        4,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, draft.skuId()));
+    assertEquals(
+        2,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, mixed.skuId()));
+    assertEquals(
+        0,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, soldOut.skuId()));
   }
 
   @Test
   void orderOwnershipIsHiddenFromOtherUsersAndAdminAndListsAreSqlPaginated() throws Exception {
     Fixture fixture = publishedFixture("Order ownership", 10, 300);
-    long firstId = json(createOrder(user, fixture.skuId(), "owner-list-key-001")).path("id").asLong();
-    long secondId = json(createOrder(user, fixture.skuId(), "owner-list-key-002")).path("id").asLong();
-    json(createOrder(user, fixture.skuId(), "owner-list-key-003"));
+    long firstId =
+        json(createOrder(user, fixture.skuId(), "owner-list-key-001")).path("id").asLong();
+    long secondId =
+        json(createOrder(user, fixture.skuId(), "owner-list-key-002")).path("id").asLong();
+    long thirdId =
+        json(createOrder(user, fixture.skuId(), "owner-list-key-003")).path("id").asLong();
 
     for (String token : List.of(secondUser.token(), admin.token())) {
       for (String suffix : List.of("", "/pay", "/cancel")) {
         HttpResponse<String> hidden =
-        call(suffix.isEmpty() ? "GET" : "POST", "/api/v1/orders/" + firstId + suffix, token, null);
+            call(
+                suffix.isEmpty() ? "GET" : "POST",
+                "/api/v1/orders/" + firstId + suffix,
+                token,
+                null);
         if (suffix.isEmpty()) {
           assertStatus(404, hidden);
           assertApiError(hidden);
@@ -526,8 +587,10 @@ class Stage2IntegrationTest {
     HttpResponse<String> page0 = call("GET", "/api/v1/orders?page=0&size=2", user.token(), null);
     HttpResponse<String> page1 = call("GET", "/api/v1/orders?page=1&size=2", user.token(), null);
     HttpResponse<String> empty = call("GET", "/api/v1/orders?page=2&size=2", user.token(), null);
-    HttpResponse<String> otherList = call("GET", "/api/v1/orders?page=0&size=20", secondUser.token(), null);
-    HttpResponse<String> adminList = call("GET", "/api/v1/orders?page=0&size=20", admin.token(), null);
+    HttpResponse<String> otherList =
+        call("GET", "/api/v1/orders?page=0&size=20", secondUser.token(), null);
+    HttpResponse<String> adminList =
+        call("GET", "/api/v1/orders?page=0&size=20", admin.token(), null);
     assertStatus(200, page0);
     assertStatus(200, page1);
     assertStatus(200, empty);
@@ -539,7 +602,9 @@ class Stage2IntegrationTest {
     assertEquals(0, json(empty).path("items").size());
     assertEquals(0, json(otherList).path("total").asInt());
     assertEquals(0, json(adminList).path("total").asInt());
-    assertTrue(Set.of(firstId, secondId).contains(json(page0).path("items").path(0).path("id").asLong()));
+    assertEquals(thirdId, json(page0).path("items").path(0).path("id").asLong());
+    assertEquals(secondId, json(page0).path("items").path(1).path("id").asLong());
+    assertEquals(firstId, json(page1).path("items").path(0).path("id").asLong());
 
     assertStatus(400, call("GET", "/api/v1/orders/0", user.token(), null));
     HttpResponse<String> invalidPage = call("GET", "/api/v1/orders?page=-1", user.token(), null);
@@ -558,24 +623,38 @@ class Stage2IntegrationTest {
     assertStatus(201, pending);
     assertFalse(json(pending).hasNonNull("ticket"));
 
-    HttpResponse<String> paid = call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
-    HttpResponse<String> repeatedPay = call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
+    HttpResponse<String> paid =
+        call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
+    HttpResponse<String> repeatedPay =
+        call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
     assertStatus(200, paid);
     assertStatus(200, repeatedPay);
     assertEquals("PAID", json(paid).path("status").asText());
-    assertEquals(json(paid).path("ticket").path("id").asLong(), json(repeatedPay).path("ticket").path("id").asLong());
+    assertEquals(
+        json(paid).path("ticket").path("id").asLong(),
+        json(repeatedPay).path("ticket").path("id").asLong());
     assertEquals(itemId, json(paid).path("ticket").path("orderItemId").asLong());
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets WHERE order_item_id=?", Long.class, itemId));
-    assertEquals(4, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
-    HttpResponse<String> cannotCancelPaid = call("POST", "/api/v1/orders/" + orderId + "/cancel", user.token(), null);
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM tickets WHERE order_item_id=?", Long.class, itemId));
+    assertEquals(
+        4,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    HttpResponse<String> cannotCancelPaid =
+        call("POST", "/api/v1/orders/" + orderId + "/cancel", user.token(), null);
     assertStatus(409, cannotCancelPaid);
     assertApiError(cannotCancelPaid);
 
     HttpResponse<String> secondPending = createOrder(user, fixture.skuId(), "cancel-order-0001");
     long secondOrderId = json(secondPending).path("id").asLong();
-    HttpResponse<String> cancelled = call("POST", "/api/v1/orders/" + secondOrderId + "/cancel", user.token(), null);
-    HttpResponse<String> repeatedCancel = call("POST", "/api/v1/orders/" + secondOrderId + "/cancel", user.token(), null);
-    HttpResponse<String> payClosed = call("POST", "/api/v1/orders/" + secondOrderId + "/pay", user.token(), null);
+    HttpResponse<String> cancelled =
+        call("POST", "/api/v1/orders/" + secondOrderId + "/cancel", user.token(), null);
+    HttpResponse<String> repeatedCancel =
+        call("POST", "/api/v1/orders/" + secondOrderId + "/cancel", user.token(), null);
+    HttpResponse<String> payClosed =
+        call("POST", "/api/v1/orders/" + secondOrderId + "/pay", user.token(), null);
     HttpResponse<String> closedReplay = createOrder(user, fixture.skuId(), "cancel-order-0001");
     assertStatus(200, cancelled);
     assertStatus(200, repeatedCancel);
@@ -585,7 +664,10 @@ class Stage2IntegrationTest {
     assertEquals(json(cancelled).path("id").asLong(), json(repeatedCancel).path("id").asLong());
     assertEquals("CLOSED", json(closedReplay).path("status").asText());
     assertFalse(json(cancelled).path("closedAt").isNull());
-    assertEquals(4, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    assertEquals(
+        4,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
     assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets", Long.class));
   }
 
@@ -596,21 +678,27 @@ class Stage2IntegrationTest {
     long id = json(created).path("id").asLong();
     Instant expiresAt = Instant.parse(json(created).path("expiresAt").asText());
     assertEquals(Duration.ofMinutes(15), Duration.between(clock.instant(), expiresAt));
-    assertEquals(2, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
 
     clock.set(expiresAt.minusNanos(1));
-    assertEquals(0, orders.closeExpired(id));
-    HttpResponse<String> stillPayable = call("POST", "/api/v1/orders/" + id + "/pay", user.token(), null);
+    assertFalse(orders.closeExpired(id));
+    HttpResponse<String> stillPayable =
+        call("POST", "/api/v1/orders/" + id + "/pay", user.token(), null);
     assertStatus(200, stillPayable);
     assertEquals("PAID", json(stillPayable).path("status").asText());
     assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets", Long.class));
 
     Fixture expiredFixture = publishedFixture("Expire exact", 1, 900);
-    HttpResponse<String> expired = createOrder(secondUser, expiredFixture.skuId(), "expiry-exact-key-1");
+    HttpResponse<String> expired =
+        createOrder(secondUser, expiredFixture.skuId(), "expiry-exact-key-1");
     long expiredId = json(expired).path("id").asLong();
     Instant exactExpiry = Instant.parse(json(expired).path("expiresAt").asText());
     clock.set(exactExpiry);
-    HttpResponse<String> expiredPay = call("POST", "/api/v1/orders/" + expiredId + "/pay", secondUser.token(), null);
+    HttpResponse<String> expiredPay =
+        call("POST", "/api/v1/orders/" + expiredId + "/pay", secondUser.token(), null);
     assertStatus(409, expiredPay);
     assertApiError(expiredPay);
     assertEquals(
@@ -622,18 +710,32 @@ class Stage2IntegrationTest {
     assertEquals(
         "CLOSED",
         jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, expiredId));
-    assertEquals(1, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, expiredFixture.skuId()));
-    HttpResponse<String> closedReplay = createOrder(secondUser, expiredFixture.skuId(), "expiry-exact-key-1");
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?",
+            Integer.class,
+            expiredFixture.skuId()));
+    HttpResponse<String> closedReplay =
+        createOrder(secondUser, expiredFixture.skuId(), "expiry-exact-key-1");
     assertStatus(200, closedReplay);
     assertEquals(expiredId, json(closedReplay).path("id").asLong());
     assertEquals("CLOSED", json(closedReplay).path("status").asText());
-    assertEquals(1, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, expiredFixture.skuId()));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?",
+            Integer.class,
+            expiredFixture.skuId()));
   }
 
   @Test
-  void orderExpirationIsCappedAtSessionStartAndHttpPayCancelRaceHasOneTerminalWinner() throws Exception {
+  void orderExpirationIsCappedAtSessionStartAndHttpPayCancelRaceHasOneTerminalWinner()
+      throws Exception {
     Instant now = clock.instant();
-    Fixture startsSoon = publishedFixtureAt("Cap expiry", now.plus(Duration.ofMinutes(10)), now.plus(Duration.ofHours(2)), 2, 450);
+    Fixture startsSoon =
+        publishedFixtureAt(
+            "Cap expiry", now.plus(Duration.ofMinutes(10)), now.plus(Duration.ofHours(2)), 2, 450);
     HttpResponse<String> capped = createOrder(user, startsSoon.skuId(), "cap-expiry-key-001");
     assertStatus(201, capped);
     assertEquals(startsSoon.startsAt(), Instant.parse(json(capped).path("expiresAt").asText()));
@@ -659,10 +761,14 @@ class Stage2IntegrationTest {
     assertTrue(Set.of("PAID", "CLOSED").contains(status));
     assertEquals(
         "PAID".equals(status) ? 1L : 0L,
-        jdbc.queryForObject("SELECT COUNT(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?", Long.class, id));
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?",
+            Long.class,
+            id));
     assertEquals(
         "PAID".equals(status) ? 0 : 1,
-        jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, race.skuId()));
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, race.skuId()));
   }
 
   @Test
@@ -671,13 +777,18 @@ class Stage2IntegrationTest {
     HttpResponse<String> created = createOrder(user, fixture.skuId(), "cancel-scan-race-01");
     long id = json(created).path("id").asLong();
     clock.set(Instant.parse(json(created).path("expiresAt").asText()));
-    List<Integer> outcomes = parallelCallables(2, 2, index -> index == 0 ? expiryScanner.scanOnce() : cancelAndReadStatus(id));
+    List<Integer> outcomes =
+        parallelCallables(
+            2, 2, index -> index == 0 ? expiryScanner.scanOnce() : cancelAndReadStatus(id));
     assertTrue(outcomes.get(0) == 0 || outcomes.get(0) == 1);
-    assertEquals(200, outcomes.get(1), "Repeated cancellation after scanner closure remains an HTTP 200");
     assertEquals(
-        "CLOSED",
-        jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, id));
-    assertEquals(1, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+        200, outcomes.get(1), "Repeated cancellation after scanner closure remains an HTTP 200");
+    assertEquals(
+        "CLOSED", jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, id));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets", Long.class));
     assertEquals(0, expiryScanner.scanOnce());
 
@@ -703,7 +814,10 @@ class Stage2IntegrationTest {
     assertEquals(
         "CLOSED",
         jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, payRaceId));
-    assertEquals(1, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets", Long.class));
     assertEquals(0, expiryScanner.scanOnce());
   }
@@ -711,37 +825,52 @@ class Stage2IntegrationTest {
   @Test
   void orderAndTicketIdorIsHiddenAndOrganizerOnlySeesTheirOwnCheckinTarget() throws Exception {
     Fixture first = publishedFixture("Ticket owner scope", 2, 1000);
-    Fixture second = publishedFixtureForOrganizer("Other organizer ticket", secondOrganizer, 2, 1000);
+    Fixture second =
+        publishedFixtureForOrganizer("Other organizer ticket", secondOrganizer, 2, 1000);
     HttpResponse<String> firstOrder = createOrder(user, first.skuId(), "ticket-owner-key-001");
     long firstOrderId = json(firstOrder).path("id").asLong();
-    HttpResponse<String> firstPaid = call("POST", "/api/v1/orders/" + firstOrderId + "/pay", user.token(), null);
+    HttpResponse<String> firstPaid =
+        call("POST", "/api/v1/orders/" + firstOrderId + "/pay", user.token(), null);
     assertStatus(200, firstPaid);
     long ticketId = json(firstPaid).path("ticket").path("id").asLong();
-    HttpResponse<String> secondOrder = createOrder(secondUser, second.skuId(), "ticket-second-key-01");
+    HttpResponse<String> secondOrder =
+        createOrder(secondUser, second.skuId(), "ticket-second-key-01");
     long secondOrderId = json(secondOrder).path("id").asLong();
-    HttpResponse<String> secondPaid = call("POST", "/api/v1/orders/" + secondOrderId + "/pay", secondUser.token(), null);
+    HttpResponse<String> secondPaid =
+        call("POST", "/api/v1/orders/" + secondOrderId + "/pay", secondUser.token(), null);
     assertStatus(200, secondPaid);
     long otherTicketId = json(secondPaid).path("ticket").path("id").asLong();
 
     for (String token : List.of(secondUser.token(), admin.token())) {
       HttpResponse<String> hiddenOrder = call("GET", "/api/v1/orders/" + firstOrderId, token, null);
-      HttpResponse<String> hiddenTicketCode = call("POST", "/api/v1/me/tickets/" + ticketId + "/checkin-code", token, null);
+      HttpResponse<String> hiddenTicketCode =
+          call("POST", "/api/v1/me/tickets/" + ticketId + "/checkin-code", token, null);
       assertStatus(404, hiddenOrder);
       assertStatus(404, hiddenTicketCode);
       assertApiError(hiddenOrder);
       assertApiError(hiddenTicketCode);
     }
     HttpResponse<String> userCheckInForbidden =
-        call("POST", "/api/v1/organizer/tickets/check-in", user.token(), Map.of("checkinCode", "A".repeat(43)));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            user.token(),
+            Map.of("checkinCode", "A".repeat(43)));
     assertStatus(403, userCheckInForbidden);
     assertApiError(userCheckInForbidden);
     HttpResponse<String> otherOrganizerCode =
-        call("POST", "/api/v1/me/tickets/" + otherTicketId + "/checkin-code", organizer.token(), null);
+        call(
+            "POST",
+            "/api/v1/me/tickets/" + otherTicketId + "/checkin-code",
+            organizer.token(),
+            null);
     assertStatus(403, otherOrganizerCode);
     assertApiError(otherOrganizerCode);
 
-    HttpResponse<String> userTickets = call("GET", "/api/v1/me/tickets?page=0&size=20", user.token(), null);
-    HttpResponse<String> otherTickets = call("GET", "/api/v1/me/tickets?page=0&size=20", secondUser.token(), null);
+    HttpResponse<String> userTickets =
+        call("GET", "/api/v1/me/tickets?page=0&size=20", user.token(), null);
+    HttpResponse<String> otherTickets =
+        call("GET", "/api/v1/me/tickets?page=0&size=20", secondUser.token(), null);
     assertStatus(200, userTickets);
     assertStatus(200, otherTickets);
     assertEquals(1, json(userTickets).path("total").asInt());
@@ -750,7 +879,11 @@ class Stage2IntegrationTest {
     assertEquals(otherTicketId, json(otherTickets).path("items").path(0).path("id").asLong());
 
     HttpResponse<String> otherOwnerCode =
-        call("POST", "/api/v1/me/tickets/" + otherTicketId + "/checkin-code", secondUser.token(), null);
+        call(
+            "POST",
+            "/api/v1/me/tickets/" + otherTicketId + "/checkin-code",
+            secondUser.token(),
+            null);
     assertStatus(200, otherOwnerCode);
     String adminCheckinCode = json(otherOwnerCode).path("checkinCode").asText();
     clock.set(second.startsAt().minus(Duration.ofHours(2)));
@@ -771,12 +904,20 @@ class Stage2IntegrationTest {
   }
 
   @Test
-  void checkinCodeIsHighEntropyHashedRotatesAndHonorsOwnershipWindowAndOneTimeUse() throws Exception {
+  void checkinCodeIsHighEntropyHashedRotatesAndHonorsOwnershipWindowAndOneTimeUse()
+      throws Exception {
     Instant origin = clock.instant();
-    Fixture fixture = publishedFixtureAt("Ticket window", origin.plus(Duration.ofHours(2)), origin.plus(Duration.ofHours(3)), 2, 1000);
+    Fixture fixture =
+        publishedFixtureAt(
+            "Ticket window",
+            origin.plus(Duration.ofHours(2)),
+            origin.plus(Duration.ofHours(3)),
+            2,
+            1000);
     HttpResponse<String> created = createOrder(user, fixture.skuId(), "ticket-window-key-01");
     long orderId = json(created).path("id").asLong();
-    HttpResponse<String> paid = call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
+    HttpResponse<String> paid =
+        call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
     assertStatus(200, paid);
     long ticketId = json(paid).path("ticket").path("id").asLong();
 
@@ -791,14 +932,23 @@ class Stage2IntegrationTest {
     assertEquals(ticketId, json(rotatedCodeResponse).path("ticketId").asLong());
     assertTrue(oldCode.matches("[A-Za-z0-9_-]{43}"));
     assertTrue(currentCode.matches("[A-Za-z0-9_-]{43}"));
-    assertTrue(!oldCode.equals(currentCode), "Code rotation must create a distinct one-time credential");
-    String storedHash = jdbc.queryForObject("SELECT checkin_code_hash FROM tickets WHERE id=?", String.class, ticketId);
-    assertTrue(sha256Hex(currentCode).equals(storedHash), "Only the SHA-256 digest may be persisted");
+    assertTrue(
+        !oldCode.equals(currentCode), "Code rotation must create a distinct one-time credential");
+    String storedHash =
+        jdbc.queryForObject(
+            "SELECT checkin_code_hash FROM tickets WHERE id=?", String.class, ticketId);
+    assertTrue(
+        sha256Hex(currentCode).equals(storedHash), "Only the SHA-256 digest may be persisted");
     assertFalse(storedHash.equals(currentCode));
 
     HttpResponse<String> malformed =
-        call("POST", "/api/v1/organizer/tickets/check-in", organizer.token(), Map.of("checkinCode", "bad"));
-    String unknownCanonicalCode = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes(32));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            organizer.token(),
+            Map.of("checkinCode", "bad"));
+    String unknownCanonicalCode =
+        Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes(32));
     HttpResponse<String> unknownCode =
         call(
             "POST",
@@ -806,7 +956,11 @@ class Stage2IntegrationTest {
             organizer.token(),
             Map.of("checkinCode", unknownCanonicalCode));
     HttpResponse<String> oldCodeRejected =
-        call("POST", "/api/v1/organizer/tickets/check-in", organizer.token(), Map.of("checkinCode", oldCode));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            organizer.token(),
+            Map.of("checkinCode", oldCode));
     assertStatus(400, malformed);
     assertStatus(404, unknownCode);
     assertStatus(404, oldCodeRejected);
@@ -814,13 +968,21 @@ class Stage2IntegrationTest {
 
     clock.set(fixture.startsAt().minus(Duration.ofHours(2)).minusSeconds(1));
     HttpResponse<String> tooEarly =
-        call("POST", "/api/v1/organizer/tickets/check-in", organizer.token(), Map.of("checkinCode", currentCode));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            organizer.token(),
+            Map.of("checkinCode", currentCode));
     assertStatus(409, tooEarly);
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM checkin_records", Long.class));
 
     clock.set(fixture.startsAt().minus(Duration.ofHours(2)));
     HttpResponse<String> wrongOrganizer =
-        call("POST", "/api/v1/organizer/tickets/check-in", secondOrganizer.token(), Map.of("checkinCode", currentCode));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            secondOrganizer.token(),
+            Map.of("checkinCode", currentCode));
     assertStatus(404, wrongOrganizer);
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM checkin_records", Long.class));
 
@@ -837,10 +999,21 @@ class Stage2IntegrationTest {
     assertEquals(1L, sameCode.stream().filter(response -> response.statusCode() == 200).count());
     assertEquals(1L, sameCode.stream().filter(response -> response.statusCode() == 409).count());
     HttpResponse<String> repeated =
-        call("POST", "/api/v1/organizer/tickets/check-in", organizer.token(), Map.of("checkinCode", currentCode));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            organizer.token(),
+            Map.of("checkinCode", currentCode));
     assertStatus(409, repeated);
-    assertEquals("USED", jdbc.queryForObject("SELECT status FROM tickets WHERE id=?", String.class, ticketId));
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM checkin_records WHERE ticket_id=? AND result='SUCCESS'", Long.class, ticketId));
+    assertEquals(
+        "USED",
+        jdbc.queryForObject("SELECT status FROM tickets WHERE id=?", String.class, ticketId));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM checkin_records WHERE ticket_id=? AND result='SUCCESS'",
+            Long.class,
+            ticketId));
     assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM checkin_records", Long.class));
     JsonNode success =
         json(sameCode.stream().filter(r -> r.statusCode() == 200).findFirst().orElseThrow());
@@ -852,7 +1025,13 @@ class Stage2IntegrationTest {
   @Test
   void checkinWindowIncludesEndPlusOneHourAndRejectsUnpaidTicketsAndUsedCodes() throws Exception {
     Instant origin = clock.instant();
-    Fixture boundary = publishedFixtureAt("Window end", origin.plus(Duration.ofHours(5)), origin.plus(Duration.ofHours(6)), 2, 1000);
+    Fixture boundary =
+        publishedFixtureAt(
+            "Window end",
+            origin.plus(Duration.ofHours(5)),
+            origin.plus(Duration.ofHours(6)),
+            2,
+            1000);
     HttpResponse<String> unpaidPending = createOrder(user, boundary.skuId(), "unpaid-ticket-key01");
     long unpaidItemId = json(unpaidPending).path("item").path("id").asLong();
     String unpaidCode = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes(32));
@@ -877,33 +1056,55 @@ class Stage2IntegrationTest {
     assertStatus(200, unpaidTicketList);
     assertEquals(0, json(unpaidTicketList).path("total").asInt());
     HttpResponse<String> unpaidAttempt =
-        call("POST", "/api/v1/organizer/tickets/check-in", organizer.token(), Map.of("checkinCode", unpaidCode));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            organizer.token(),
+            Map.of("checkinCode", unpaidCode));
     assertStatus(409, unpaidAttempt);
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM checkin_records", Long.class));
-    assertEquals("UNUSED", jdbc.queryForObject("SELECT status FROM tickets WHERE order_item_id=?", String.class, unpaidItemId));
+    assertEquals(
+        "UNUSED",
+        jdbc.queryForObject(
+            "SELECT status FROM tickets WHERE order_item_id=?", String.class, unpaidItemId));
 
-    HttpResponse<String> paidPending = createOrder(secondUser, boundary.skuId(), "paid-ticket-key-0001");
+    HttpResponse<String> paidPending =
+        createOrder(secondUser, boundary.skuId(), "paid-ticket-key-0001");
     long orderId = json(paidPending).path("id").asLong();
-    HttpResponse<String> paid = call("POST", "/api/v1/orders/" + orderId + "/pay", secondUser.token(), null);
+    HttpResponse<String> paid =
+        call("POST", "/api/v1/orders/" + orderId + "/pay", secondUser.token(), null);
     assertStatus(200, paid);
     long ticketId = json(paid).path("ticket").path("id").asLong();
-    HttpResponse<String> codeResponse = call("POST", "/api/v1/me/tickets/" + ticketId + "/checkin-code", secondUser.token(), null);
+    HttpResponse<String> codeResponse =
+        call("POST", "/api/v1/me/tickets/" + ticketId + "/checkin-code", secondUser.token(), null);
     assertStatus(200, codeResponse);
     String code = json(codeResponse).path("checkinCode").asText();
     clock.set(boundary.endsAt().plus(Duration.ofHours(1)));
     HttpResponse<String> boundaryCheckin =
-        call("POST", "/api/v1/organizer/tickets/check-in", organizer.token(), Map.of("checkinCode", code));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            organizer.token(),
+            Map.of("checkinCode", code));
     assertStatus(200, boundaryCheckin);
     assertEquals("USED", json(boundaryCheckin).path("status").asText());
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM checkin_records WHERE ticket_id=?", Long.class, ticketId));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM checkin_records WHERE ticket_id=?", Long.class, ticketId));
     HttpResponse<String> usedAgain =
-        call("POST", "/api/v1/organizer/tickets/check-in", organizer.token(), Map.of("checkinCode", code));
+        call(
+            "POST",
+            "/api/v1/organizer/tickets/check-in",
+            organizer.token(),
+            Map.of("checkinCode", code));
     assertStatus(409, usedAgain);
     assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM checkin_records", Long.class));
   }
 
   @Test
-  void thousandDistinctUsersAndKeysOverRealHttpNeverOversellAndWriteSanitizedArtifact() throws Exception {
+  void thousandDistinctUsersAndKeysOverRealHttpNeverOversellAndWriteSanitizedArtifact()
+      throws Exception {
     final int requestCount = 1000;
     final int initialStock = 100;
     Fixture fixture = publishedFixture("Distinct user saturation", initialStock, 25);
@@ -931,7 +1132,8 @@ class Stage2IntegrationTest {
               jwt(userIds.get(index), List.of("USER"), Instant.now().plusSeconds(1800)),
               "load-" + runId + "-" + index));
     }
-    assertEquals(requestCount, requests.stream().map(LoadRequest::idempotencyKey).distinct().count());
+    assertEquals(
+        requestCount, requests.stream().map(LoadRequest::idempotencyKey).distinct().count());
 
     AtomicInteger readyToSendWorkers = new AtomicInteger();
     AtomicInteger maxReadyToSendWorkers = new AtomicInteger();
@@ -972,7 +1174,8 @@ class Stage2IntegrationTest {
                             "POST",
                             "/api/v1/orders",
                             requests.get(requestIndex).token(),
-                            orderRequest(fixture.skuId(), requests.get(requestIndex).idempotencyKey()));
+                            orderRequest(
+                                fixture.skuId(), requests.get(requestIndex).idempotencyKey()));
                     String code = response.statusCode() == 409 ? errorCode(response) : "";
                     return new LoadResult(response.statusCode(), code);
                   } catch (Exception exception) {
@@ -985,7 +1188,8 @@ class Stage2IntegrationTest {
                 },
                 pool));
       }
-      assertTrue(ready.await(60, TimeUnit.SECONDS), "All configured worker threads must rendezvous");
+      assertTrue(
+          ready.await(60, TimeUnit.SECONDS), "All configured worker threads must rendezvous");
       release.countDown();
       assertTrue(
           readyToSend.await(60, TimeUnit.SECONDS),
@@ -1000,16 +1204,22 @@ class Stage2IntegrationTest {
       results.stream()
           .filter(result -> result.status() == 409)
           .forEach(result -> conflictCodes.merge(result.code(), 1L, Long::sum));
-      long finalStock = jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Long.class, fixture.skuId());
+      long finalStock =
+          jdbc.queryForObject(
+              "SELECT available_stock FROM ticket_skus WHERE id=?", Long.class, fixture.skuId());
       long pendingOrders =
           jdbc.queryForObject(
               "SELECT COUNT(*) FROM orders WHERE requested_sku_id=? AND status='PENDING_PAYMENT'",
               Long.class,
               fixture.skuId());
       long items =
-          jdbc.queryForObject("SELECT COUNT(*) FROM order_items WHERE sku_id=?", Long.class, fixture.skuId());
+          jdbc.queryForObject(
+              "SELECT COUNT(*) FROM order_items WHERE sku_id=?", Long.class, fixture.skuId());
       long quantity =
-          jdbc.queryForObject("SELECT COALESCE(SUM(quantity),0) FROM order_items WHERE sku_id=?", Long.class, fixture.skuId());
+          jdbc.queryForObject(
+              "SELECT COALESCE(SUM(quantity),0) FROM order_items WHERE sku_id=?",
+              Long.class,
+              fixture.skuId());
       long distinctOwners =
           jdbc.queryForObject(
               "SELECT COUNT(DISTINCT user_id) FROM orders WHERE requested_sku_id=?",
@@ -1050,7 +1260,8 @@ class Stage2IntegrationTest {
       assertTrue(
           conflictCodes.keySet().stream().allMatch(Set.of("SOLD_OUT", "SKU_UNAVAILABLE")::contains),
           "Every unsuccessful reservation must be a real stock/availability conflict");
-      assertEquals(48, maxReadyToSendWorkers.get(), "The 48 worker requests must be released concurrently");
+      assertEquals(
+          48, maxReadyToSendWorkers.get(), "The 48 worker requests must be released concurrently");
       assertEquals(100, created);
       assertEquals(900, conflicts);
       assertEquals(requestCount, results.size());
@@ -1059,7 +1270,11 @@ class Stage2IntegrationTest {
       assertEquals(initialStock, items);
       assertEquals(initialStock, quantity);
       assertEquals(initialStock, distinctOwners);
-      assertTrue(jdbc.queryForObject("SELECT COUNT(*) FROM ticket_skus WHERE available_stock<0 OR available_stock>total_stock", Long.class) == 0);
+      assertTrue(
+          jdbc.queryForObject(
+                  "SELECT COUNT(*) FROM ticket_skus WHERE available_stock<0 OR available_stock>total_stock",
+                  Long.class)
+              == 0);
     } finally {
       release.countDown();
       sendNow.countDown();
@@ -1071,10 +1286,14 @@ class Stage2IntegrationTest {
     assertTrue(jdbc.queryForObject("SELECT VERSION()", String.class).startsWith("8.4"));
     assertEquals(
         1L,
-        jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version='1' AND success=1", Long.class));
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM flyway_schema_history WHERE version='1' AND success=1",
+            Long.class));
     assertEquals(
         1L,
-        jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version='2' AND success=1", Long.class));
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM flyway_schema_history WHERE version='2' AND success=1",
+            Long.class));
     assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class));
   }
 
@@ -1102,7 +1321,10 @@ class Stage2IntegrationTest {
 
   private Account insertAccount(String role) throws Exception {
     String email = "stage2-" + UUID.randomUUID().toString().replace("-", "") + "@example.test";
-    jdbc.update("INSERT INTO users(email,password_hash,status) VALUES (?,?,'ACTIVE')", email, PASSWORD_HASH);
+    jdbc.update(
+        "INSERT INTO users(email,password_hash,status) VALUES (?,?,'ACTIVE')",
+        email,
+        PASSWORD_HASH);
     long id = jdbc.queryForObject("SELECT id FROM users WHERE email=?", Long.class, email);
     jdbc.update("INSERT INTO user_roles(user_id,role) VALUES (?,?)", id, role);
     return new Account(id, jwt(id, List.of(role), Instant.now().plusSeconds(3600)));
@@ -1113,8 +1335,8 @@ class Stage2IntegrationTest {
     return publishedFixtureAt(title, starts, starts.plus(Duration.ofHours(2)), stock, price);
   }
 
-  private Fixture publishedFixtureAt(String title, Instant starts, Instant ends, int stock, long price)
-      throws Exception {
+  private Fixture publishedFixtureAt(
+      String title, Instant starts, Instant ends, int stock, long price) throws Exception {
     return eventFixture(organizer, title, starts, ends, stock, price, true);
   }
 
@@ -1174,17 +1396,27 @@ class Stage2IntegrationTest {
             now.plus(Duration.ofHours(3)),
             now.plus(Duration.ofHours(5)));
     addSku(organizer, futureSession, "Future", 100, 2);
-    assertStatus(200, call("POST", "/api/v1/organizer/events/" + eventId + "/publish", organizer.token(), null));
-    return new Fixture(eventId, startedSession, startedSku, now.minus(Duration.ofHours(2)), now.minus(Duration.ofHours(1)));
+    assertStatus(
+        200,
+        call("POST", "/api/v1/organizer/events/" + eventId + "/publish", organizer.token(), null));
+    return new Fixture(
+        eventId,
+        startedSession,
+        startedSku,
+        now.minus(Duration.ofHours(2)),
+        now.minus(Duration.ofHours(1)));
   }
 
   private TwoSkuFixture twoSkuPublishedFixture(String title, int stock) throws Exception {
     Instant starts = clock.instant().plus(Duration.ofHours(4));
     long eventId = createEvent(organizer, title);
-    long sessionId = addSession(organizer, eventId, "Session", starts, starts.plus(Duration.ofHours(2)));
+    long sessionId =
+        addSession(organizer, eventId, "Session", starts, starts.plus(Duration.ofHours(2)));
     long first = addSku(organizer, sessionId, "General A", 100, stock);
     long second = addSku(organizer, sessionId, "General B", 125, stock);
-    assertStatus(200, call("POST", "/api/v1/organizer/events/" + eventId + "/publish", organizer.token(), null));
+    assertStatus(
+        200,
+        call("POST", "/api/v1/organizer/events/" + eventId + "/publish", organizer.token(), null));
     return new TwoSkuFixture(eventId, first, second);
   }
 
@@ -1199,7 +1431,8 @@ class Stage2IntegrationTest {
     return json(response).path("id").asLong();
   }
 
-  private long addSession(Account eventOrganizer, long eventId, String title, Instant start, Instant end)
+  private long addSession(
+      Account eventOrganizer, long eventId, String title, Instant start, Instant end)
       throws Exception {
     HttpResponse<String> response =
         call(
@@ -1207,10 +1440,14 @@ class Stage2IntegrationTest {
             "/api/v1/organizer/events/" + eventId + "/sessions",
             eventOrganizer.token(),
             Map.of(
-                "title", title,
-                "startsAt", start.toString(),
-                "endsAt", end.toString(),
-                "location", "Main Hall"));
+                "title",
+                title,
+                "startsAt",
+                start.toString(),
+                "endsAt",
+                end.toString(),
+                "location",
+                "Main Hall"));
     assertStatus(201, response);
     return json(response).path("id").asLong();
   }
@@ -1229,11 +1466,7 @@ class Stage2IntegrationTest {
 
   private HttpResponse<String> createOrder(Account account, long skuId, String idempotencyKey)
       throws Exception {
-    return call(
-        "POST",
-        "/api/v1/orders",
-        account.token(),
-        orderRequest(skuId, idempotencyKey));
+    return call("POST", "/api/v1/orders", account.token(), orderRequest(skuId, idempotencyKey));
   }
 
   private static Map<String, Object> orderRequest(long skuId, String key) {
@@ -1314,7 +1547,8 @@ class Stage2IntegrationTest {
   }
 
   private int cancelAndReadStatus(long id) throws Exception {
-    HttpResponse<String> response = call("POST", "/api/v1/orders/" + id + "/cancel", user.token(), null);
+    HttpResponse<String> response =
+        call("POST", "/api/v1/orders/" + id + "/cancel", user.token(), null);
     assertTrue(response.statusCode() == 200 || response.statusCode() == 409);
     if (response.statusCode() == 200) {
       assertEquals("CLOSED", json(response).path("status").asText());
@@ -1340,7 +1574,8 @@ class Stage2IntegrationTest {
       request.header("Content-Type", "application/json");
       request.method(
           method,
-          HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body), StandardCharsets.UTF_8));
+          HttpRequest.BodyPublishers.ofString(
+              JSON.writeValueAsString(body), StandardCharsets.UTF_8));
     }
     return HTTP.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
   }
@@ -1420,7 +1655,9 @@ class Stage2IntegrationTest {
   }
 
   private static String sha256Hex(String value) throws Exception {
-    return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.US_ASCII)));
+    return java.util.HexFormat.of()
+        .formatHex(
+            MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.US_ASCII)));
   }
 
   private static byte[] randomBytes(int length) {
@@ -1436,12 +1673,14 @@ class Stage2IntegrationTest {
   private static void writeConcurrencyArtifact(Map<String, Object> artifact) throws IOException {
     Path output = Path.of("target", "stage-2-concurrency-result.json");
     Files.createDirectories(output.getParent());
-    Files.writeString(output, JSON.writeValueAsString(artifact) + System.lineSeparator(), StandardCharsets.UTF_8);
+    Files.writeString(
+        output, JSON.writeValueAsString(artifact) + System.lineSeparator(), StandardCharsets.UTF_8);
   }
 
   private record Account(long id, String token) {}
 
-  private record Fixture(long eventId, long sessionId, long skuId, Instant startsAt, Instant endsAt) {}
+  private record Fixture(
+      long eventId, long sessionId, long skuId, Instant startsAt, Instant endsAt) {}
 
   private record TwoSkuFixture(long eventId, long firstSkuId, long secondSkuId) {}
 

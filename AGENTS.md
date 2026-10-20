@@ -1,6 +1,6 @@
 # Instructions for coding agents (Codex)
 
-This repository uses stage-gated delivery. **Current task: Stage 0 environment preflight only. Do not start Stage 1 implementation until the owner/reviewer authorizes it after version review.** Read docs/06-environment-preflight.md now. Read these files before writing Stage 1 code:
+This repository uses stage-gated delivery. **Stage 0 version review is ACCEPTED. Stage 1 is authorized AFTER preflight PR #1 is merged into main.** First read docs/07-stage-0-review-and-stage-1-authorization.md. Then follow the Stage 1 specs. Do not start from a main branch missing PR #1. Read these files before writing code:
 1. docs/00-project-charter.md
 2. docs/01-architecture-and-code-style.md
 3. docs/02-domain-and-api-contract.md
@@ -9,15 +9,15 @@ This repository uses stage-gated delivery. **Current task: Stage 0 environment p
 
 ## Stage 0 environment preflight exception (current)
 
-- Follow docs/06-environment-preflight.md. This is a one-time, **read-only environment inventory**, not a code review or software installation task.
-- Inspect only the environment Codex can actually access. Do not claim a remote Codex sandbox is the user's laptop/PC.
-- Do not install, upgrade, pull Docker images, start/stop services, run build commands that download dependencies, alter PATH/JAVA_HOME, or create implementation code.
-- Deliver a concise environment matrix and recommendation questions in a small PR from codex/environment-preflight into main, changing only docs/handoffs/environment-preflight.md. Do not merge. Stop and ask for the next instruction.
-- If unable to push/PR, give the complete sanitized version matrix directly to the user with an honest limitation. Do not proceed with Stage 1.
+- Stage 0 was completed in PR #1 and reviewed. Preserve its report; this block is historical and must not delay Stage 1 once PR #1 has been merged.
+- Reuse existing JDK 21.0.9 for project-local processes via temporary environment variables, Maven 3.8.6 (or compatible committed wrapper), Node 24. Do not globally change Java 17 defaults.
+- MySQL 5.7 is an existing unrelated local service on 3306; do not alter it. Containerize MySQL 8.4 using localhost port 3307 for host tools, but Testcontainers should use its own ephemeral mapped ports.
+- Docker engine is not yet connected. Diagnose safely per docs/07; CI Linux can validate tests when local Docker remains unavailable, but NEVER silently skip database integration tests. Installing/upgrading Docker, changing WSL/Windows features, or modifying OS settings requires separate user approval.
+- Do not install native Redis or RabbitMQ; reserve both for Stage 3.
 
 ## Source of truth / execution
 
-- The documents in main specify product scope, contracts and coding rules. **Only after Stage 0 approval**, work on a feature branch named codex/stage-1-foundation for Stage 1, branching from main. Never push feature code directly to main.
+- The documents in main specify product scope, contracts and coding rules. **After preflight PR #1 is merged into main**, work on a feature branch named codex/stage-1-foundation for Stage 1, branching from latest main. Never push feature code directly to main.
 - Complete **only** the authorized stage and all its acceptance criteria. Do not start Stage 2, introduce Redis/RabbitMQ, or create a Vue frontend during Stage 1.
 - You are the implementer, not the reviewer. Do not merge PRs and do not declare a stage approved. Await human/ChatGPT stage-gate review before moving on.
 - You may make normal engineering decisions without frequent questions; record impactful decisions as short ADRs under docs/decisions/. Do not silently change fixed technology/architecture, scope or security constraints.

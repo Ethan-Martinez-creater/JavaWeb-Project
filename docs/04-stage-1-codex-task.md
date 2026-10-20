@@ -1,6 +1,6 @@
-# Codex 执行任务书 — Stage 1（Stage 0 环境预检确认后生效）
+# Codex 执行任务书 — Stage 1（环境预检已批准，PR #1 合并后开始）
 
-**前置门禁：先按 docs/06-environment-preflight.md 做环境预检，获得用户与 ChatGPT 的明确版本确认之后才能开始本任务。不得借预检自动启动 Stage 1。**
+**Stage 0 已审查通过。务必先确认预检 PR #1 已合并 main，再阅读 docs/07-stage-0-review-and-stage-1-authorization.md，并按其中版本复用、Docker 诊断、MySQL 端口隔离规则实施。**
 
 ## 目标
 
@@ -19,12 +19,12 @@
 
 ## A. 工程基础（必须完成）
 
-1. 创建 backend/ 单 Maven 工程、Maven Wrapper、Java 21、Spring Boot 4.1.1、MyBatis Starter 4.1.0，依赖明确可复现。
+1. 创建 backend/ 单 Maven 工程、Maven Wrapper、Java 21、Spring Boot 4.1.1、MyBatis Starter 4.1.0，依赖明确可复现。**复用已安装 JDK 21.0.9；为 Maven Wrapper 优先选择与本机兼容、且无需额外手动安装的 Maven 3.8.6。**
 2. 引入 MySQL 8.4、Flyway SQL migration（如需 MySQL 扩展模块请添加）、Spring Security JWT、Validation、Actuator（health）、JUnit 5、Testcontainers MySQL。
 3. 创建按 feature 分包结构（identity/event/common），明确 controller/service/mapper XML/DTO，禁止直接暴露持久化对象。
 4. 创建 .editorconfig、.gitignore、Spotless（格式检查）、环境变量示例 .env.example、开发 profile 和最少权限配置；禁止提交任何真实密钥。
-5. infra/docker-compose.dev.yml 启动开发 MySQL，数据库 healthcheck；README 说明启动/停止、配置环境、迁移、构建、测试、接口 curl 样例。
-6. GitHub Actions 在 PR 上执行 format check + tests（使用容器的方式记录，优先 Testcontainers 与 runner Docker）。不要为了 CI 绿色而跳过 MySQL 集成测试。
+5. infra/docker-compose.dev.yml 启动隔离 MySQL 8.4，宿主机只映射 127.0.0.1:3307 到容器 3306，不接触本机 MySQL 5.7 的数据文件或 3306；数据库 healthcheck；README 说明启动/停止、配置环境、迁移、构建、测试、接口 curl 样例。
+6. GitHub Actions 在 PR 上使用 Linux runner + JDK 21 执行 format check + tests（Testcontainers 使用 runner Docker）。不要为了 CI 绿色而跳过 MySQL 集成测试。**如果本机 Docker 不通，先诊断；不能安全恢复时继续开发并让 CI 测试，但不得谎报本地测试通过，且须在交接报告注明限制。**
 
 ## B. 数据与安全（必须完成）
 

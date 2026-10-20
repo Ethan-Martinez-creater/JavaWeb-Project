@@ -2,15 +2,15 @@
 
 **所有阶段都以 PR 为验收单位。每阶段 Codex 自主完成该阶段全部任务、测试和文档后，才请求集中审核。未经明确审核通过，不得推进下一阶段。**
 
-## Stage 0 — 一次性环境盘点（当前任务，非开发阶段）
+## Stage 0 — 一次性环境盘点（已评估通过，PR #1 等待合并）
 
 - 只允许执行 docs/06-environment-preflight.md 中的**只读检查**，不安装/升级、不启动服务、不下载镜像、不写业务代码。
 - 报告检查位置、当前版本和可用性，不推断 Codex 环境就是用户本地环境。
 - 用小型 preflight PR 留档；这**不构成 Stage 1 的代码审查**。
-- 用户把报告/PR 发给 ChatGPT 后，由 ChatGPT 判断复用、通过容器隔离或确需安装/升级，明确批准 Stage 1 才开始。
+- 2026-10-20 已基于 PR #1 和官方兼容性资料完成审查；结果见 docs/07-stage-0-review-and-stage-1-authorization.md。需先合并 PR #1，再基于最新 main 开发 Stage 1。
 - 后续 Stage 1–4 的「每阶段结束一次代码审核」机制不变。
 
-## Stage 1 — 工程骨架、认证权限、活动基础域（预检通过后启动）
+## Stage 1 — 工程骨架、认证权限、活动基础域（Stage 0 PR #1 合并后已授权启动）
 
 - 交付：Spring Boot + MyBatis + MySQL + Flyway + Maven Wrapper；模块化单体规范结构；注册/登录/JWT/RBAC；活动、场次、票种、发布与公开浏览 REST API；Docker MySQL；测试与 CI。
 - 不交付：订单、库存扣减、支付、核销、Redis、MQ、前端。
@@ -38,7 +38,7 @@
 
 ## 必须遵守的 PR 流程
 
-1. Stage 0 经版本确认并明确授权后，Codex 从 main 最新代码切出 codex/stage-N-* 分支，**正式开发第一轮只实现 Stage 1**。
+1. Stage 0 PR #1 合并、版本确认后，Codex 从 main 最新代码切出 codex/stage-N-* 分支，**正式开发第一轮只实现 Stage 1**。
 2. 在分支上进行所有实现、格式化、测试和必要文档更新；不得提交 .env、密码、令牌或大体积构建产物。
 3. 完成 docs/handoffs/stage-N.md 交接报告，并创建 PR：标题格式 [Stage N] 主题。
 4. PR 中列出验收条款的完成状态、关键提交 SHA、测试环境和实测命令结果、已知风险、不在范围的事项；提供主要源码/测试路径。

@@ -41,6 +41,9 @@ mybatis:
     map-underscore-to-camel-case: true
 
 app:
+  orders:
+    expiry-scan-enabled: ${ORDER_EXPIRY_SCAN_ENABLED:true}
+    expiry-scan-delay-ms: 30000
   jwt:
     secret: ${JWT_SECRET}
     issuer: eventflow

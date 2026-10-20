@@ -3,7 +3,7 @@
 ## 元数据
 
 - Stage：2，完成实现后交付集中审核；不自行声明阶段 ACCEPT。
-- PR URL：待创建本阶段 PR 后补录；分支 `codex/stage-2-order-lifecycle → main`。
+- PR URL：[Stage 2 PR #3](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/pull/3)；分支 `codex/stage-2-order-lifecycle → main`，保持打开、不合并。
 - Base SHA：`a0f7db063327371acdb9cda3c42b904ac56fa034`。PR #2 已审核合并，merge SHA `0aa4a4d73995efd537c010cc2edd6a798fd3f0a4`；开发前已正常 fetch、快进 main 并阅读最新授权。
 - 已验证实现基准：`13c12c7f3f7161cf5a766ad0278de26fda2d821b`。后续交接/CI 证据更新以 PR Head 为准，避免文档自引用 SHA。
 - 时间：2026-10-20，Asia/Shanghai；原始 JSON 的 timestampUtc 使用 UTC。
@@ -31,7 +31,7 @@
 | Stage 1 回归与完整套件 | PASS | `Stage1IntegrationTest`、`Stage2IntegrationTest` | 原 13 项保持通过，新增 17 项；完整 30 项，0 失败/错误/跳过 |
 | 1000 不同用户并发库存验证 | PASS | `Stage2IntegrationTest.thousandDistinctUsersAndKeysOverRealHttpNeverOversellAndWriteSanitizedArtifact` | 48 线程，1000 请求全部完成；100×201、900×SOLD_OUT 409、余量 0、订单/明细各 100 |
 | 干净检出 verify | PASS | 已提交 Wrapper 与 `.worktrees/verify-stage2` | 无既有 target，重新编译/格式检查/全部 30 项测试通过，1000 请求不变量再次全部满足 |
-| Linux CI 与证据上传 | UNVERIFIED（待 PR 触发） | `.github/workflows/backend-ci.yml` | format + verify 不排除集成测试，上传 Surefire 及脱敏并发 JSON；结果待补录 |
+| Linux CI 与证据上传 | PASS | `.github/workflows/backend-ci.yml` | [run 39441979436](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39441979436)：30/0/0/0；Surefire 和并发 JSON 均已上传，已下载核对 JSON |
 
 ## 实际执行结果
 
@@ -43,7 +43,7 @@
 | 打包 JAR 的真实 HTTP 订单流程 | 22:29 | PASS | 新买家注册/登录；预占/重放同单；取消/重复取消；新单支付/重复支付同票；本人票列表和轮换码 |
 | Wrapper `spotless:apply verify` | 22:37:56 完成，2:18 | PASS | 30 tests，Failures 0、Errors 0、Skipped 0；BUILD SUCCESS；Stage 2 子套件 17 项、67.74 s |
 | 全新检出 Wrapper `spotless:check verify` | 22:41:02 完成，2:23 | PASS | 30/0/0/0；Stage 2 子套件 17 项、64.12 s；BUILD SUCCESS；并发仍为 100/900/余量 0 |
-| Linux CI | 尚未触发 | UNVERIFIED | 待补录链接与实际结果 |
+| Linux CI `./mvnw --batch-mode spotless:check verify` | 22:45:46 完成，1:10 | PASS | [run 39441979436](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39441979436)，实现/报告提交 309dcb5；30/0/0/0，Stage 2 17 项、22.02 s；BUILD SUCCESS |
 | `git diff --check` 与 V1 差异检查 | 提交前 | PASS | 无空白错误；已发布 V1 无改动 |
 
 开发过程中曾出现测试夹具类型编译错误，以及首次完整运行的两项测试预期错误（倒序分页错误排除最新订单、误把预占后库存当成初始库存）；还修正了布尔关闭结果断言。修复后执行完整套件得到上述 30/0/0/0。失败或中断轮次没有计为通过，未修改业务不变量来迎合测试。
@@ -51,6 +51,8 @@
 ### 1000 请求原始证据摘要
 
 本机通过轮次 JSON 时间为 `2026-10-20T14:37:12.269245Z`，文件为 `backend/target/stage-2-concurrency-result.json`（忽略的构建产物，CI 上传同名 artifact）。
+
+干净检出再次得到相同计数，JSON 时间 `2026-10-20T14:39:55.944520200Z`。Linux CI 实测时间为 `2026-10-20T14:45:36.581532330Z`，同样 1000 完成、100 成功、900 SOLD_OUT、余量 0、100 个待付款订单和明细。已从 run 39441979436 下载 artifact `stage-2-concurrency-result`（ID 12274061897）核对；其原始脱敏 JSON 副本保留为 [stage-2-concurrency-ci.json](stage-2-concurrency-ci.json)，避免仅依赖构建日志保留期。原始来源 Head 为 `309dcb5436b4c51b08db9b110bc22c601c885a3e`，后续证据提交不修改实现代码。
 
 | 指标 | 本机实测 |
 |---|---:|
@@ -88,7 +90,7 @@ Get-Content -LiteralPath 'target/stage-2-concurrency-result.json' -Encoding utf8
 - P2：到期扫描每 30 秒最多 100 单，数据库短暂故障后可重扫；大量积压时关闭有延迟，尚未引入 MQ 或高负载调优。列表/详情采用清晰的条目/票据查询，未作容量承诺。
 - 核销只持久化成功结果，失败返回脱敏错误但不落审计表；旧码在轮换提交后失效，客户端应按需刷新展示码。核销窗口为 `[startsAt-2h, endsAt+1h]`，两端包含。
 - 沿用 Stage 1 JWT 有效期内不即时撤销的限制；未扩大为账户管理/强制下线功能。
-- 待验证：Linux CI 尚待 PR 触发；提交交付前补齐。
+- 未验证事项：未进行容量/QPS、硬件故障、真实支付或多实例长期运行实验；这些不属于本阶段正确性 Gate。最终文档提交触发的 CI 状态以 PR Checks 为准，上述固定链接保留已验证实现的证据。
 - 不在范围：多 SKU/多票订单、真实支付退款、活动取消运营规则、Redis、MQ、Outbox、前端、性能基准、OS/Docker 升级。
 
 ## 审核定位与后续依赖
@@ -99,3 +101,5 @@ Get-Content -LiteralPath 'target/stage-2-concurrency-result.json' -Encoding utf8
 - 学习材料：[四条关键调用链与状态图](../learning/stage-2-key-flows.md)；[API/数据契约](../02-domain-and-api-contract.md)；根 README 提供端到端 PowerShell 演示，令牌与码仅留内存。
 - 后续已具备：持久订单/库存/电子票状态、可重复调用的 DB 关单用例与扫描补偿，为后续经授权的异步触发提供基础；没有开始消息实现。
 - 本 PR 保持打开、不合并；尚未开始 Stage 3，等待集中审核。
+
+收尾已停止本次冒烟 Java PID 和项目 3307 容器，保留项目卷；原 MySQL 服务仍 Running、3306 监听，默认 Java 17 未改。未批量删除文件/目录或清理 Docker 数据。

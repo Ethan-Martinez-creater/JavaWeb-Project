@@ -53,7 +53,9 @@ import tools.jackson.databind.json.JsonMapper;
  * Docker is required: the suite deliberately has no disabled or assume-based fallback.
  */
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = "app.orders.expiry-scan-enabled=false")
 class Stage1IntegrationTest {
   private static final ObjectMapper JSON = JsonMapper.builder().build();
   private static final HttpClient HTTP =

@@ -52,7 +52,8 @@ public class TicketService {
         || !Objects.equals(qualification.getOwnerUserId(), ownerId)
         || !PAID.equals(qualification.getOrderStatus())
         || !Integer.valueOf(1).equals(qualification.getQuantity())) {
-      throw new IllegalStateException("A ticket can only be issued for the owner's paid single-item order.");
+      throw new IllegalStateException(
+          "A ticket can only be issued for the owner's paid single-item order.");
     }
 
     TicketEntity existing = mapper.findByOrderItem(orderItemId);
@@ -77,7 +78,9 @@ public class TicketService {
     validatePage(page, size);
     long total = mapper.countByOwner(ownerId);
     List<TicketView> items =
-        mapper.listByOwner(ownerId, (long) page * size, size).stream().map(TicketService::view).toList();
+        mapper.listByOwner(ownerId, (long) page * size, size).stream()
+            .map(TicketService::view)
+            .toList();
     return new PageResponse<>(items, page, size, total);
   }
 
@@ -173,7 +176,9 @@ public class TicketService {
   private static String hash(String code) {
     try {
       return HexFormat.of()
-          .formatHex(MessageDigest.getInstance("SHA-256").digest(code.getBytes(StandardCharsets.US_ASCII)));
+          .formatHex(
+              MessageDigest.getInstance("SHA-256")
+                  .digest(code.getBytes(StandardCharsets.US_ASCII)));
     } catch (NoSuchAlgorithmException exception) {
       throw new IllegalStateException("SHA-256 is required by the Java runtime.", exception);
     }

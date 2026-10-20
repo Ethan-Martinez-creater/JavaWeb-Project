@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eventflow.order.infrastructure.OrderMapper">
+  <sql id="columns">id, order_no, user_id, idempotency_key, requested_sku_id, status,
+    total_price_cents, expires_at, paid_at, closed_at, created_at, updated_at</sql>
+  <insert id="insertReservation">
+    INSERT INTO orders(order_no, user_id, idempotency_key, requested_sku_id, status,
+                       total_price_cents, expires_at)
+    VALUES(#{orderNo}, #{userId}, #{idempotencyKey}, #{requestedSkuId}, 'PENDING_PAYMENT', 0, #{expiresAt})
+    ON DUPLICATE KEY UPDATE id = id
+  </insert>
+  <select id="lockByKey" resultType="com.eventflow.order.domain.OrderEntity">
+    SELECT <include refid="columns"/> FROM orders
+    WHERE user_id = #{userId} AND idempotency_key = #{key} FOR UPDATE
+  </select>
+  <select id="lockOwned" resultType="com.eventflow.order.domain.OrderEntity">
+    SELECT <include refid="columns"/> FROM orders WHERE id = #{id} AND user_id = #{userId} FOR UPDATE
+  </select>
+  <select id="lockById" resultType="com.eventflow.order.domain.OrderEntity">
+    SELECT <include refid="columns"/> FROM orders WHERE id = #{id} FOR UPDATE
+  </select>
+  <select id="findOwned" resultType="com.eventflow.order.domain.OrderEntity">
+    SELECT <include refid="columns"/> FROM orders WHERE id = #{id} AND user_id = #{userId}
+  </select>
+  <select id="countOwned" resultType="long">
+    SELECT COUNT(*) FROM orders WHERE user_id = #{userId}
+  </select>
+  <select id="listOwned" resultType="com.eventflow.order.domain.OrderEntity">
+    SELECT <include refid="columns"/> FROM orders WHERE user_id = #{userId}
+    ORDER BY id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+  <update id="completeReservation">
+    UPDATE orders SET total_price_cents = #{price}, expires_at = #{expiresAt}, updated_at = UTC_TIMESTAMP(6)
+    WHERE id = #{id} AND status = 'PENDING_PAYMENT'
+  </update>
+  <insert id="insertItem" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO order_items(order_id, sku_id, price_cents, quantity)
+    VALUES(#{orderId}, #{skuId}, #{priceCents}, 1)
+  </insert>
+  <select id="findItem" resultType="com.eventflow.order.domain.OrderItemEntity">
+    SELECT id, order_id, sku_id, price_cents, quantity FROM order_items WHERE order_id = #{orderId}
+  </select>
+  <update id="markPaid">
+    UPDATE orders SET status = 'PAID', paid_at = #{now}, updated_at = #{now}
+    WHERE id = #{id} AND status = 'PENDING_PAYMENT' AND expires_at &gt; #{now}
+  </update>
+  <update id="markClosed">
+    UPDATE orders SET status = 'CLOSED', closed_at = #{now}, updated_at = #{now}
+    WHERE id = #{id} AND status = 'PENDING_PAYMENT'
+  </update>
+  <select id="findExpired" resultType="long">
+    SELECT id FROM orders WHERE status = 'PENDING_PAYMENT' AND expires_at &lt;= #{now}
+    ORDER BY expires_at, id LIMIT #{limit}
+  </select>
+</mapper>

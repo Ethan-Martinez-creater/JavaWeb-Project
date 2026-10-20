@@ -1,11 +1,12 @@
 # Instructions for coding agents (Codex)
 
-This repository uses stage-gated delivery. **Stage 0 PR #1 was ACCEPTED and merged. Stage 1 is now authorized.** First read docs/07-stage-0-review-and-stage-1-authorization.md. Then follow the Stage 1 specs. Start from latest main that includes PR #1. Read these files before writing code:
+This repository uses stage-gated delivery. **Stage 0 PR #1 and Stage 1 PR #2 were ACCEPTED and merged. Stage 2 is now authorized.** Start from latest main including PR #2. Read docs/08-stage-2-codex-task.md and retain Stage 1's baseline; Stage 1 instructions are historical, not the current implementation scope. Read these files before writing code:
 1. docs/00-project-charter.md
 2. docs/01-architecture-and-code-style.md
 3. docs/02-domain-and-api-contract.md
 4. docs/03-stage-roadmap-and-gates.md
-5. docs/04-stage-1-codex-task.md (Stage 1 only)
+5. docs/08-stage-2-codex-task.md (Stage 2, current)
+6. docs/04-stage-1-codex-task.md (historical Stage 1)
 
 ## Stage 0 environment preflight decisions (completed)
 
@@ -17,8 +18,8 @@ This repository uses stage-gated delivery. **Stage 0 PR #1 was ACCEPTED and merg
 
 ## Source of truth / execution
 
-- The documents in main specify product scope, contracts and coding rules. **Now that preflight PR #1 is merged**, work on a feature branch named codex/stage-1-foundation for Stage 1, branching from latest main. Never push feature code directly to main.
-- Complete **only** the authorized stage and all its acceptance criteria. Do not start Stage 2, introduce Redis/RabbitMQ, or create a Vue frontend during Stage 1.
+- The documents in main specify product scope, contracts and coding rules. **Now that Stage 1 PR #2 is merged**, work on branch codex/stage-2-order-lifecycle for Stage 2, branching from latest main. Never push feature code directly to main.
+- Complete **only Stage 2** and all its acceptance criteria. Do not start Stage 3, introduce Redis/RabbitMQ, or create Vue frontend.
 - You are the implementer, not the reviewer. Do not merge PRs and do not declare a stage approved. Await human/ChatGPT stage-gate review before moving on.
 - You may make normal engineering decisions without frequent questions; record impactful decisions as short ADRs under docs/decisions/. Do not silently change fixed technology/architecture, scope or security constraints.
 - Use idiomatic Java 21, Spring Boot 4.1.1 and the MyBatis Starter compatible with Boot 4.1; confirm dependency coordinates/version availability during build. Use MyBatis, **not JPA/MyBatis-Plus**, for persistence. Avoid unnecessary abstractions.
@@ -27,7 +28,7 @@ This repository uses stage-gated delivery. **Stage 0 PR #1 was ACCEPTED and merg
 - Use externalized secrets, robust validation, centralized exceptions, UTC timestamps and reproducible Flyway migrations. No hard-coded real credentials or tokens.
 - All changed functionality requires tests. Run formatting and tests with the committed Maven Wrapper. Tests requiring MySQL should run against real MySQL using Testcontainers (do not substitute H2). If Docker/build infrastructure is unavailable, report exact commands, errors and unverified checks; never claim a test passed without execution.
 - Do not make gratuitous library/version swaps to resolve one error. Consult official docs and document alternatives if necessary.
-- Keep PR manageable by logical commits; create one stage PR with a reproducible test report and docs/handoffs/stage-1.md using docs/05-handoff-template.md. Include a completed checklist, risks, commands and real observed results.
+- Keep PR manageable by logical commits; create one stage PR with reproducible results and docs/handoffs/stage-2.md using docs/05-handoff-template.md. Include a completed checklist, risks, commands and real observed results.
 - Stage delivery condition is **PR open, not merged**, and a succinct message containing PR URL and SHA.
 
 ## Stage changes

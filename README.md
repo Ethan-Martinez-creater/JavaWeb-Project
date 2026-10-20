@@ -1,6 +1,6 @@
 # EventFlow — 活动票务预约与核销平台
 
-Java 21 / Spring Boot 4.1.1 / MyBatis 的模块化单体。当前实现 **Stage 1**：JWT/RBAC、活动草稿、场次与票种、发布及公开查询，等待阶段 PR 审核。订单、支付、核销、Redis、RabbitMQ、Vue 均不在本轮范围；不自行合并或推进 Stage 2。
+Java 21 / Spring Boot 4.1.1 / MyBatis 的模块化单体。已验收 **Stage 1（PR #2 合并）**：JWT/RBAC、活动草稿、场次与票种、发布和公开查询。**当前正在进行 Stage 2：订单与库存预占、模拟支付、关单、电子票与入场核销**；本轮不引入 Redis、RabbitMQ、Vue。参见 [Stage 2 当前任务书](docs/08-stage-2-codex-task.md)。
 
 ## 环境与数据隔离
 
@@ -73,7 +73,12 @@ Set-Location backend
 
 测试启动真正的 MySQL 8.4（Testcontainers），通过 HTTP 调用完整安全链，检查 Flyway、约束、所有权、认证、分页、草稿不可见及并发发布。Docker 不可用会明确失败；没有 H2、Docker 不可用时自动跳过或硬编码本机测试库。无需启动开发 Compose，也不使用 3306/3307 的现有数据库。仅在主动修正格式时执行 `.\mvnw.cmd spotless:apply`，然后重跑上述检查。
 
-GitHub Actions 在 PR 和 main 推送上运行 JDK 21、格式检查及同一 verify，上传测试报告。CI 不通过时不能将数据库验收视为通过。实际本机与 CI 结果见 [Stage 1 交接](docs/handoffs/stage-1.md)。
+GitHub Actions 在 PR 和 main 推送上运行 JDK 21、格式检查及同一 verify，上传测试报告。CI 不通过时不能将数据库验收视为通过。Stage 1 的实际本机与 CI 结果见 [Stage 1 交接](docs/handoffs/stage-1.md)。Stage 2 代码尚未实现，以下启动和 API 演示目前仍仅适用于 Stage 1。
+
+## 当前 Stage 2 任务
+
+- [Stage 2 完整实现要求与验收标准](docs/08-stage-2-codex-task.md)
+- [Stage 1 已验收交接报告](docs/handoffs/stage-1.md)
 
 ## HTTP 示例
 

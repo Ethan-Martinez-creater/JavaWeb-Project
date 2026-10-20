@@ -10,19 +10,19 @@
 - 2026-10-20 已基于 PR #1 和官方兼容性资料完成审查；结果见 docs/07-stage-0-review-and-stage-1-authorization.md。PR #1 已合并，可基于最新 main 开发 Stage 1。
 - 后续 Stage 1–4 的「每阶段结束一次代码审核」机制不变。
 
-## Stage 1 — 工程骨架、认证权限、活动基础域（Stage 0 PR #1 合并后已授权启动）
+## Stage 1 — 工程骨架、认证权限、活动基础域（ACCEPT，PR #2 已合并）
 
 - 交付：Spring Boot + MyBatis + MySQL + Flyway + Maven Wrapper；模块化单体规范结构；注册/登录/JWT/RBAC；活动、场次、票种、发布与公开浏览 REST API；Docker MySQL；测试与 CI。
 - 不交付：订单、库存扣减、支付、核销、Redis、MQ、前端。
 - Gate：干净环境构建通过，MySQL 真实集成测试通过，鉴权/所有权与草稿不可见测试通过，契约匹配，日志/密钥安全，无重大结构问题。
 - 详见 docs/04-stage-1-codex-task.md。
 
-## Stage 2 — 票务预约、库存与订单履约闭环（未授权）
+## Stage 2 — 票务预约、库存与订单履约闭环（当前已授权阶段）
 
 - 交付：预约下单、库存原子预占/释放、幂等、订单状态机、模拟支付、电子票核销；关键竞态和并发用例。
 - Gate：对给定 SKU 库存 100、1000 个不同用户并发预约的测试成功数 ≤100 且库存不为负；同一幂等键不会产生双订单；重复关单与支付竞态不造成状态或库存错误；核销仅成功一次；事务/索引设计有证据。
-- 依赖：Stage 1 完成并合并通过的 PR。
-- 不引入 Redis/MQ；先依赖 MySQL 正确性闭环。
+- 依赖：Stage 1 PR #2 已审核 ACCEPT 并合并（merge SHA `0aa4a4d`）。完整任务与验收见 docs/08-stage-2-codex-task.md。
+- 不引入 Redis/MQ；先依赖 MySQL 正确性闭环；后续引入 MQ 前须先具备可重复执行的 DB 定时关单流程。
 
 ## Stage 3 — Redis 缓存、RabbitMQ 消息可靠性（未授权）
 
@@ -38,7 +38,7 @@
 
 ## 必须遵守的 PR 流程
 
-1. Stage 0 PR #1 合并、版本确认后，Codex 从 main 最新代码切出 codex/stage-N-* 分支，**正式开发第一轮只实现 Stage 1**。
+1. 当前阶段为 Stage 2：Codex 从已合并 PR #2 的最新 main 切出 codex/stage-2-order-lifecycle 分支，严格按本阶段任务书实施；下一阶段不得提前开始。
 2. 在分支上进行所有实现、格式化、测试和必要文档更新；不得提交 .env、密码、令牌或大体积构建产物。
 3. 完成 docs/handoffs/stage-N.md 交接报告，并创建 PR：标题格式 [Stage N] 主题。
 4. PR 中列出验收条款的完成状态、关键提交 SHA、测试环境和实测命令结果、已知风险、不在范围的事项；提供主要源码/测试路径。

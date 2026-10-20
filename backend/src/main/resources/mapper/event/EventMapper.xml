@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eventflow.event.infrastructure.EventMapper">
+  <sql id="eventColumns">id, organizer_id, title, description, status, created_at, updated_at</sql>
+  <sql id="ownership">
+    id = #{id}
+    <if test="!admin">AND organizer_id = #{ownerId}</if>
+  </sql>
+  <sql id="publishedFilter">
+    status = 'PUBLISHED'
+    <if test="keyword != null and keyword != ''">
+      AND title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+    </if>
+  </sql>
+  <insert id="insertEvent" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO events(organizer_id, title, description, status)
+    VALUES(#{organizerId}, #{title}, #{description}, 'DRAFT')
+  </insert>
+  <select id="findPublished" resultType="com.eventflow.event.domain.EventEntity">
+    SELECT <include refid="eventColumns"/> FROM events WHERE id = #{id} AND status = 'PUBLISHED'
+  </select>
+  <select id="findOwned" resultType="com.eventflow.event.domain.EventEntity">
+    SELECT <include refid="eventColumns"/> FROM events WHERE <include refid="ownership"/>
+  </select>
+  <select id="lockOwned" resultType="com.eventflow.event.domain.EventEntity">
+    SELECT <include refid="eventColumns"/> FROM events WHERE <include refid="ownership"/> FOR UPDATE
+  </select>
+  <update id="updateDraft">
+    UPDATE events SET title = #{title}, description = #{description}, updated_at = UTC_TIMESTAMP(6)
+    WHERE id = #{id} AND status = 'DRAFT'
+  </update>
+  <update id="publish">
+    UPDATE events SET status = 'PUBLISHED', updated_at = UTC_TIMESTAMP(6)
+    WHERE id = #{id} AND status = 'DRAFT'
+  </update>
+  <select id="listPublished" resultType="com.eventflow.event.domain.EventEntity">
+    SELECT <include refid="eventColumns"/> FROM events WHERE <include refid="publishedFilter"/>
+    ORDER BY id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="countPublished" resultType="long">
+    SELECT COUNT(*) FROM events WHERE <include refid="publishedFilter"/>
+  </select>
+  <select id="listOwned" resultType="com.eventflow.event.domain.EventEntity">
+    SELECT <include refid="eventColumns"/> FROM events WHERE organizer_id = #{ownerId}
+    ORDER BY id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="countOwned" resultType="long">
+    SELECT COUNT(*) FROM events WHERE organizer_id = #{ownerId}
+  </select>
+  <insert id="insertSession" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO event_sessions(event_id, title, starts_at, ends_at, location)
+    VALUES(#{eventId}, #{title}, #{startsAt}, #{endsAt}, #{location})
+  </insert>
+  <select id="findSession" resultType="com.eventflow.event.domain.SessionEntity">
+    SELECT id, event_id, title, starts_at, ends_at, location, created_at, updated_at
+    FROM event_sessions WHERE id = #{id}
+  </select>
+  <select id="listSessions" resultType="com.eventflow.event.domain.SessionEntity">
+    SELECT id, event_id, title, starts_at, ends_at, location, created_at, updated_at
+    FROM event_sessions WHERE event_id = #{eventId} ORDER BY id
+  </select>
+  <insert id="insertSku" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO ticket_skus(session_id, name, price_cents, total_stock, available_stock)
+    VALUES(#{sessionId}, #{name}, #{priceCents}, #{totalStock}, #{availableStock})
+  </insert>
+  <select id="listSkus" resultType="com.eventflow.event.domain.SkuEntity">
+    SELECT id, session_id, name, price_cents, total_stock, available_stock, created_at, updated_at
+    FROM ticket_skus WHERE session_id = #{sessionId} ORDER BY id
+  </select>
+</mapper>

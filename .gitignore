@@ -1,0 +1,23 @@
+# Maven outputs and local caches
+**/target/
+.build-cache/
+.worktrees/
+
+# Local environment configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Local logs
+*.log
+
+# IDE metadata
+.idea/
+.vscode/
+*.iml

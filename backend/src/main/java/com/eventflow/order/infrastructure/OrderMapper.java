@@ -38,4 +38,8 @@ public interface OrderMapper {
   int markClosed(@Param("id") long id, @Param("now") LocalDateTime now);
 
   List<Long> findExpired(@Param("now") LocalDateTime now, @Param("limit") int limit);
+
+  Integer expiryRetryAttempts(long id);
+
+  int deferExpiry(@Param("id") long id, @Param("retryAt") LocalDateTime retryAt);
 }

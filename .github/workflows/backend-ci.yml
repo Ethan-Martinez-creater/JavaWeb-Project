@@ -47,3 +47,11 @@ jobs:
           name: stage-2-concurrency-result
           path: backend/target/stage-2-concurrency-result.json
           if-no-files-found: error
+
+      - name: Upload middleware fault recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-3-fault-results
+          path: backend/target/stage-3-fault-results.json
+          if-no-files-found: error

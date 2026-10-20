@@ -17,7 +17,44 @@ services:
       retries: 30
       start_period: 60s
 
+  redis:
+    image: redis:8.4.7-alpine@sha256:0514fa59e3d84e2f3be66731c5401fc2a85b8ea71b49c0116c850f6a558076f4
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a project Redis password}
+    command: ["/bin/sh", "-c", 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    ports:
+      - "127.0.0.1:16379:6379"
+    volumes:
+      - eventflow_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine@sha256:3505b6096cdbc083bcc363e74366f575ecd0c1a55be4dadcbc60fa08e34647e1
+    hostname: eventflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?Set a project RabbitMQ user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set a project RabbitMQ password}
+    ports:
+      - "127.0.0.1:5673:5672"
+      - "127.0.0.1:15673:15672"
+    volumes:
+      - eventflow_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
 volumes:
   eventflow_mysql_data:
     name: eventflow_mysql_data
+  eventflow_redis_data:
+    name: eventflow_redis_data
+  eventflow_rabbitmq_data:
+    name: eventflow_rabbitmq_data
 

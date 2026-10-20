@@ -10,6 +10,28 @@ spring:
       connection-init-sql: SET time_zone = '+00:00'
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:16379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:300ms}
+      timeout: ${REDIS_COMMAND_TIMEOUT:300ms}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5673}
+    username: ${RABBITMQ_USERNAME:}
+    password: ${RABBITMQ_PASSWORD:}
+    connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT:2s}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+        prefetch: 10
   jackson:
     deserialization:
       fail-on-unknown-properties: true
@@ -43,7 +65,20 @@ mybatis:
 app:
   orders:
     expiry-scan-enabled: ${ORDER_EXPIRY_SCAN_ENABLED:true}
-    expiry-scan-delay-ms: 30000
+    expiry-scan-delay-ms: ${ORDER_EXPIRY_SCAN_DELAY_MS:30000}
+    expiry-retry-base-ms: ${ORDER_EXPIRY_RETRY_BASE_MS:1000}
+    expiry-retry-max-ms: ${ORDER_EXPIRY_RETRY_MAX_MS:300000}
+  events:
+    cache:
+      enabled: ${EVENT_CACHE_ENABLED:true}
+      list-ttl-ms: ${EVENT_CACHE_LIST_TTL_MS:60000}
+      detail-ttl-ms: ${EVENT_CACHE_DETAIL_TTL_MS:300000}
+      ttl-jitter-ms: ${EVENT_CACHE_TTL_JITTER_MS:15000}
+  rate-limit:
+    orders:
+      enabled: ${ORDER_RATE_LIMIT_ENABLED:true}
+      limit: ${ORDER_RATE_LIMIT:20}
+      window-ms: ${ORDER_RATE_LIMIT_WINDOW_MS:60000}
   jwt:
     secret: ${JWT_SECRET}
     issuer: eventflow

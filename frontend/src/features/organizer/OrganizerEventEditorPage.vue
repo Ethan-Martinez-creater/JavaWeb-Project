@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { organizerApi } from '../../api/resources'
 import type { EventDetail } from '../../api/types'
 import ErrorNotice from '../../components/ErrorNotice.vue'
+import { createRequestGeneration } from '../../utils/requestGeneration'
 
 const route = useRoute()
 const router = useRouter()
+const routeRequests = createRequestGeneration()
+const detailRequests = createRequestGeneration()
+const mutationRequests = createRequestGeneration()
 const event = ref<EventDetail | null>(null)
 const title = ref('')
 const description = ref('')
@@ -34,55 +38,142 @@ const canPublish = computed(
         sessions.value.length > 0 &&
         sessions.value.every((session) => session.ticketSkus.length > 0),
 )
+let currentRouteGeneration = 0
 
-async function load(): Promise<void> {
+async function load(routeGeneration = currentRouteGeneration): Promise<void> {
     if (isNew.value) return
-    if (!Number.isSafeInteger(eventId.value) || eventId.value <= 0) return
+    const id = eventId.value
+    if (!Number.isSafeInteger(id) || id <= 0) return
+    const detailGeneration = detailRequests.begin()
     pending.value = true
     failure.value = null
     try {
-        event.value = await organizerApi.detail(eventId.value)
+        const nextEvent = await organizerApi.detail(id)
+        if (
+            !routeRequests.isCurrent(routeGeneration) ||
+            !detailRequests.isCurrent(detailGeneration) ||
+            eventId.value !== id
+        ) {
+            return
+        }
+        event.value = nextEvent
         title.value = event.value.title
         description.value = event.value.description
         if (!sessions.value.some((session) => String(session.id) === selectedSessionId.value)) {
             selectedSessionId.value = sessions.value[0] ? String(sessions.value[0].id) : ''
         }
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            detailRequests.isCurrent(detailGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        pending.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            detailRequests.isCurrent(detailGeneration)
+        ) {
+            pending.value = false
+        }
     }
+}
+
+function handleEditorRouteChange(): void {
+    currentRouteGeneration = routeRequests.begin()
+    detailRequests.begin()
+    mutationRequests.begin()
+    event.value = null
+    title.value = ''
+    description.value = ''
+    selectedSessionId.value = ''
+    sessionTitle.value = ''
+    startsAt.value = defaultLocalTime(30)
+    endsAt.value = defaultLocalTime(120)
+    location.value = ''
+    skuName.value = ''
+    priceCents.value = 0
+    totalStock.value = 100
+    failure.value = null
+    pending.value = false
+    saving.value = false
+
+    if (isNew.value) return
+    if (!Number.isSafeInteger(eventId.value) || eventId.value <= 0) {
+        failure.value = new Error('活动编号无效。')
+        return
+    }
+    void load(currentRouteGeneration)
+}
+
+function isCurrentMutation(
+    routeGeneration: number,
+    mutationGeneration: number,
+    id: number,
+): boolean {
+    return (
+        routeRequests.isCurrent(routeGeneration) &&
+        mutationRequests.isCurrent(mutationGeneration) &&
+        eventId.value === id &&
+        event.value?.id === id
+    )
 }
 
 async function saveEvent(): Promise<void> {
     if (saving.value) return
     if (!title.value.trim() || !description.value.trim()) return
+    const routeGeneration = currentRouteGeneration
+    const mutationGeneration = mutationRequests.begin()
+    const existingEventId = event.value?.id
     saving.value = true
     failure.value = null
     try {
         if (!event.value) {
+            if (!isNew.value) return
             const created = await organizerApi.create(title.value.trim(), description.value.trim())
-            event.value = created
+            if (
+                !routeRequests.isCurrent(routeGeneration) ||
+                !mutationRequests.isCurrent(mutationGeneration) ||
+                !isNew.value
+            ) {
+                return
+            }
             ElMessage.success('草稿已创建。接下来添加场次与票种。')
             await router.replace({ name: 'organizer-event-edit', params: { id: created.id } })
             return
         }
-        event.value = await organizerApi.edit(
-            event.value.id,
+        if (existingEventId === undefined) return
+        const editedEvent = await organizerApi.edit(
+            existingEventId,
             title.value.trim(),
             description.value.trim(),
         )
+        if (!isCurrentMutation(routeGeneration, mutationGeneration, existingEventId)) return
+        event.value = editedEvent
         ElMessage.success('草稿信息已保存。')
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        saving.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            saving.value = false
+        }
     }
 }
 
 async function addSession(): Promise<void> {
     if (saving.value) return
     if (!event.value || !sessionTitle.value.trim() || !location.value.trim()) return
+    const routeGeneration = currentRouteGeneration
+    const mutationGeneration = mutationRequests.begin()
+    const currentEventId = event.value.id
     const start = new Date(startsAt.value)
     const end = new Date(endsAt.value)
     if (
@@ -97,27 +188,41 @@ async function addSession(): Promise<void> {
     saving.value = true
     failure.value = null
     try {
-        const session = await organizerApi.addSession(event.value.id, {
+        const session = await organizerApi.addSession(currentEventId, {
             title: sessionTitle.value.trim(),
             startsAt: start.toISOString(),
             endsAt: end.toISOString(),
             location: location.value.trim(),
         })
-        await load()
+        if (!isCurrentMutation(routeGeneration, mutationGeneration, currentEventId)) return
+        await load(routeGeneration)
+        if (!isCurrentMutation(routeGeneration, mutationGeneration, currentEventId)) return
         selectedSessionId.value = String(session.id)
         sessionTitle.value = ''
         location.value = ''
         ElMessage.success('场次已添加。')
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        saving.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            saving.value = false
+        }
     }
 }
 
 async function addSku(): Promise<void> {
     if (saving.value) return
-    if (!selectedSession.value || !skuName.value.trim()) return
+    const currentEvent = event.value
+    const currentSession = selectedSession.value
+    if (!currentEvent || !currentSession || !skuName.value.trim()) return
     if (
         !Number.isSafeInteger(priceCents.value) ||
         priceCents.value < 0 ||
@@ -127,36 +232,67 @@ async function addSku(): Promise<void> {
         failure.value = new Error('价格和库存必须是非负整数，价格单位为分。')
         return
     }
+    const routeGeneration = currentRouteGeneration
+    const mutationGeneration = mutationRequests.begin()
+    const currentEventId = currentEvent.id
+    const currentSessionId = currentSession.id
     saving.value = true
     failure.value = null
     try {
-        await organizerApi.addSku(selectedSession.value.id, {
+        await organizerApi.addSku(currentSessionId, {
             name: skuName.value.trim(),
             priceCents: priceCents.value,
             totalStock: totalStock.value,
         })
-        await load()
+        if (!isCurrentMutation(routeGeneration, mutationGeneration, currentEventId)) return
+        await load(routeGeneration)
+        if (!isCurrentMutation(routeGeneration, mutationGeneration, currentEventId)) return
         skuName.value = ''
         ElMessage.success('票种已添加，库存数据已保存到服务端。')
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        saving.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            saving.value = false
+        }
     }
 }
 
 async function publish(): Promise<void> {
     if (saving.value) return
     if (!event.value) return
+    const routeGeneration = currentRouteGeneration
+    const mutationGeneration = mutationRequests.begin()
+    const currentEventId = event.value.id
     saving.value = true
     failure.value = null
     try {
-        event.value = await organizerApi.publish(event.value.id)
+        const published = await organizerApi.publish(currentEventId)
+        if (!isCurrentMutation(routeGeneration, mutationGeneration, currentEventId)) return
+        event.value = published
         ElMessage.success('活动已发布，可以从公开活动页查看。')
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        saving.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            mutationRequests.isCurrent(mutationGeneration)
+        ) {
+            saving.value = false
+        }
     }
 }
 
@@ -175,7 +311,15 @@ function formatMoney(cents: number): string {
     )
 }
 
-onMounted(() => void load())
+watch(() => route.fullPath, handleEditorRouteChange, {
+    immediate: true,
+    flush: 'sync',
+})
+onBeforeRouteLeave(() => {
+    routeRequests.begin()
+    detailRequests.begin()
+    mutationRequests.begin()
+})
 </script>
 
 <template>
@@ -228,7 +372,7 @@ onMounted(() => void load())
                         type="primary"
                         native-type="submit"
                         :loading="saving"
-                        :disabled="event !== null && !isDraft"
+                        :disabled="pending || (event !== null && !isDraft)"
                         >{{ event ? '保存草稿' : '创建并继续' }}</el-button
                     >
                 </div>

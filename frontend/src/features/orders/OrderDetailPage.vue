@@ -1,64 +1,164 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { orderApi } from '../../api/resources'
 import type { Order } from '../../api/types'
 import ErrorNotice from '../../components/ErrorNotice.vue'
+import { createRequestGeneration } from '../../utils/requestGeneration'
 
 const route = useRoute()
+const routeRequests = createRequestGeneration()
+const detailRequests = createRequestGeneration()
+const actionRequests = createRequestGeneration()
 const order = ref<Order | null>(null)
 const pending = ref(false)
 const actionPending = ref(false)
 const failure = ref<unknown>(null)
+let currentRouteGeneration = 0
 
-async function load(): Promise<void> {
-    const id = Number(route.params.id)
-    if (!Number.isSafeInteger(id) || id <= 0) return
+async function load(id: number, routeGeneration: number): Promise<void> {
+    const detailGeneration = detailRequests.begin()
     pending.value = true
     failure.value = null
     try {
-        order.value = await orderApi.detail(id)
+        const nextOrder = await orderApi.detail(id)
+        if (
+            !routeRequests.isCurrent(routeGeneration) ||
+            !detailRequests.isCurrent(detailGeneration) ||
+            Number(route.params.id) !== id
+        ) {
+            return
+        }
+        order.value = nextOrder
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            detailRequests.isCurrent(detailGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        pending.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            detailRequests.isCurrent(detailGeneration)
+        ) {
+            pending.value = false
+        }
     }
 }
 
+function handleOrderRouteChange(rawId: string | string[] | undefined): void {
+    currentRouteGeneration = routeRequests.begin()
+    detailRequests.begin()
+    actionRequests.begin()
+    order.value = null
+    failure.value = null
+    pending.value = false
+    actionPending.value = false
+
+    const id = Number(rawId)
+    if (!Number.isSafeInteger(id) || id <= 0) {
+        failure.value = new Error('订单编号无效。')
+        return
+    }
+    void load(id, currentRouteGeneration)
+}
+
 async function pay(): Promise<void> {
-    if (!order.value || actionPending.value) return
+    const currentOrder = order.value
+    if (
+        !currentOrder ||
+        actionPending.value ||
+        currentOrder.id !== Number(route.params.id) ||
+        pending.value
+    ) {
+        return
+    }
+    const routeGeneration = currentRouteGeneration
+    const actionGeneration = actionRequests.begin()
     actionPending.value = true
     failure.value = null
     try {
-        order.value = await orderApi.pay(order.value.id)
+        const paidOrder = await orderApi.pay(currentOrder.id)
+        if (
+            !routeRequests.isCurrent(routeGeneration) ||
+            !actionRequests.isCurrent(actionGeneration) ||
+            Number(route.params.id) !== currentOrder.id
+        ) {
+            return
+        }
+        order.value = paidOrder
         ElMessage.success('模拟支付成功，服务端已签发电子票。')
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            actionRequests.isCurrent(actionGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        actionPending.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            actionRequests.isCurrent(actionGeneration)
+        ) {
+            actionPending.value = false
+        }
     }
 }
 
 async function cancel(): Promise<void> {
-    if (!order.value || actionPending.value) return
+    const currentOrder = order.value
+    if (
+        !currentOrder ||
+        actionPending.value ||
+        currentOrder.id !== Number(route.params.id) ||
+        pending.value
+    ) {
+        return
+    }
+    const routeGeneration = currentRouteGeneration
+    const actionGeneration = actionRequests.begin()
     actionPending.value = true
     failure.value = null
     try {
-        order.value = await orderApi.cancel(order.value.id)
+        const closedOrder = await orderApi.cancel(currentOrder.id)
+        if (
+            !routeRequests.isCurrent(routeGeneration) ||
+            !actionRequests.isCurrent(actionGeneration) ||
+            Number(route.params.id) !== currentOrder.id
+        ) {
+            return
+        }
+        order.value = closedOrder
         ElMessage.success('订单已关闭，库存状态已由服务端更新。')
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            actionRequests.isCurrent(actionGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        actionPending.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            actionRequests.isCurrent(actionGeneration)
+        ) {
+            actionPending.value = false
+        }
     }
 }
 
 watch(
-    () => route.params.id,
-    () => void load(),
-    { immediate: true },
+    () => route.fullPath,
+    () => handleOrderRouteChange(route.params.id),
+    { immediate: true, flush: 'sync' },
 )
+onBeforeRouteLeave(() => {
+    routeRequests.begin()
+    detailRequests.begin()
+    actionRequests.begin()
+})
 function statusLabel(status: Order['status']): string {
     return { PENDING_PAYMENT: '待支付', PAID: '已支付', CLOSED: '已关闭' }[status]
 }

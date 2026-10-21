@@ -73,10 +73,18 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
             method: options.method ?? 'GET',
             headers,
             body: options.body === undefined ? undefined : JSON.stringify(options.body),
-            signal: options.signal,
+            signal: options.signal
+                ? AbortSignal.any([options.signal, AbortSignal.timeout(15_000)])
+                : AbortSignal.timeout(15_000),
             credentials: 'same-origin',
         })
-    } catch {
+    } catch (error) {
+        if (hasErrorName(error, 'TimeoutError')) {
+            throw new ApiFailure(0, 'REQUEST_TIMEOUT', '请求超时，请查看订单后重试。')
+        }
+        if (hasErrorName(error, 'AbortError')) {
+            throw new ApiFailure(0, 'REQUEST_ABORTED', '请求已取消。')
+        }
         throw new ApiFailure(0, 'NETWORK_ERROR', '无法连接服务器，请检查网络后重试。')
     }
 
@@ -99,4 +107,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
 function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
     return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasErrorName(error: unknown, name: string): boolean {
+    return typeof error === 'object' && error !== null && 'name' in error && error.name === name
 }

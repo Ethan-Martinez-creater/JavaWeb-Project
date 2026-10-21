@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { eventApi, orderApi } from '../../api/resources'
 import type { EventDetail, TicketSku } from '../../api/types'
+import { createRequestGeneration } from '../../utils/requestGeneration'
 import {
     clearReservationKey,
     getReservationKey,
@@ -15,66 +16,146 @@ import { useAuthStore } from '../../stores/auth'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const routeRequests = createRequestGeneration()
+const detailRequests = createRequestGeneration()
+const reservationRequests = createRequestGeneration()
 const event = ref<EventDetail | null>(null)
 const selectedSkuId = ref('')
 const pending = ref(false)
 const ordering = ref(false)
 const failure = ref<unknown>(null)
 const reservationStorageAvailable = ref(isReservationStorageAvailable())
+let currentRouteGeneration = 0
 
 const skus = computed<TicketSku[]>(
     () => event.value?.sessions.flatMap((session) => session.ticketSkus) ?? [],
 )
 const selectedSku = computed(() => skus.value.find((sku) => String(sku.id) === selectedSkuId.value))
 
-async function load(): Promise<void> {
-    const id = Number(route.params.id)
-    if (!Number.isSafeInteger(id) || id <= 0) return
+async function load(id: number, routeGeneration: number): Promise<void> {
+    const detailGeneration = detailRequests.begin()
     pending.value = true
     failure.value = null
     try {
-        event.value = await eventApi.detail(id)
+        const nextEvent = await eventApi.detail(id)
+        if (
+            !routeRequests.isCurrent(routeGeneration) ||
+            !detailRequests.isCurrent(detailGeneration) ||
+            Number(route.params.id) !== id
+        ) {
+            return
+        }
+        event.value = nextEvent
         if (!skus.value.some((sku) => String(sku.id) === selectedSkuId.value)) {
             selectedSkuId.value = skus.value[0] ? String(skus.value[0].id) : ''
         }
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            detailRequests.isCurrent(detailGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        pending.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            detailRequests.isCurrent(detailGeneration)
+        ) {
+            pending.value = false
+        }
+    }
+}
+
+function handleEventRouteChange(rawId: string | string[] | undefined): void {
+    currentRouteGeneration = routeRequests.begin()
+    detailRequests.begin()
+    reservationRequests.begin()
+    event.value = null
+    selectedSkuId.value = ''
+    failure.value = null
+    pending.value = false
+    ordering.value = false
+
+    const id = Number(rawId)
+    if (!Number.isSafeInteger(id) || id <= 0) {
+        failure.value = new Error('活动编号无效。')
+        return
+    }
+    void load(id, currentRouteGeneration)
+}
+
+function refresh(): void {
+    const id = Number(route.params.id)
+    if (Number.isSafeInteger(id) && id > 0) {
+        void load(id, currentRouteGeneration)
     }
 }
 
 async function reserve(): Promise<void> {
-    if (ordering.value) return
-    if (!selectedSku.value) return
+    const currentEvent = event.value
+    const currentSku = selectedSku.value
+    if (
+        ordering.value ||
+        pending.value ||
+        !currentEvent ||
+        currentEvent.id !== Number(route.params.id) ||
+        !currentSku
+    ) {
+        return
+    }
     if (!auth.user || (!auth.hasRole('USER') && !auth.hasRole('ADMIN'))) {
         await router.push({ name: 'login', query: { redirect: route.fullPath } })
         return
     }
 
+    const routeGeneration = currentRouteGeneration
+    const reservationGeneration = reservationRequests.begin()
     const userId = auth.user.id
+    const eventId = currentEvent.id
     ordering.value = true
     failure.value = null
-    const skuId = selectedSku.value.id
+    const skuId = currentSku.id
     const key = getReservationKey(userId, skuId)
     try {
         const order = await orderApi.create(skuId, key)
         // The key is kept for every failed or ambiguous request and cleared only on a response.
         clearReservationKey(userId, skuId)
+        if (
+            !routeRequests.isCurrent(routeGeneration) ||
+            !reservationRequests.isCurrent(reservationGeneration) ||
+            Number(route.params.id) !== eventId
+        ) {
+            return
+        }
         ElMessage.success('预约成功，订单为本人保留。请在订单有效期内完成模拟支付。')
         await router.push({ name: 'order-detail', params: { id: order.id } })
     } catch (error) {
-        failure.value = error
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            reservationRequests.isCurrent(reservationGeneration)
+        ) {
+            failure.value = error
+        }
     } finally {
-        ordering.value = false
+        if (
+            routeRequests.isCurrent(routeGeneration) &&
+            reservationRequests.isCurrent(reservationGeneration)
+        ) {
+            ordering.value = false
+        }
     }
 }
 
 watch(
-    () => route.params.id,
-    () => void load(),
-    { immediate: true },
+    () => route.fullPath,
+    () => handleEventRouteChange(route.params.id),
+    { immediate: true, flush: 'sync' },
 )
+onBeforeRouteLeave(() => {
+    routeRequests.begin()
+    detailRequests.begin()
+    reservationRequests.begin()
+})
 function formatDate(value: string): string {
     return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
@@ -112,7 +193,8 @@ function formatMoney(cents: number): string {
                             data-testid="refresh-event"
                             plain
                             :loading="pending"
-                            @click="load"
+                            :disabled="ordering"
+                            @click="refresh"
                             >刷新库存</el-button
                         >
                     </div>
@@ -170,7 +252,7 @@ function formatMoney(cents: number): string {
                         class="wide-button"
                         data-testid="reserve-order"
                         type="primary"
-                        :disabled="!selectedSku || selectedSku.availableStock < 1"
+                        :disabled="pending || !selectedSku || selectedSku.availableStock < 1"
                         :loading="ordering"
                         @click="reserve"
                     >

@@ -30,6 +30,22 @@ describe('API error conversion', () => {
         expect(userMessage({})).toBe('请求未能完成，请检查输入后重试。')
     })
 
+    it('reports a bounded request timeout as an ambiguous request result', async () => {
+        const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+            expect(init?.signal).toBeInstanceOf(AbortSignal)
+            return Promise.reject(new DOMException('Request timed out', 'TimeoutError'))
+        })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await expect(
+            request('/api/v1/orders', { method: 'POST', body: { skuId: 31 } }),
+        ).rejects.toMatchObject({
+            status: 0,
+            code: 'REQUEST_TIMEOUT',
+            message: '请求超时，请查看订单后重试。',
+        })
+    })
+
     it('clears only the token that received the unauthorized response', async () => {
         let activeToken = 'new-login-token'
         const expiredTokens: string[] = []

@@ -1,0 +1,841 @@
+openapi: 3.1.0
+info:
+  title: EventFlow API
+  version: 1.0.0
+  description: |
+    EventFlow Stage 1–3 REST API plus the Stage 4 owner-scoped organizer event detail read.
+    Public registration creates USER only. Orders, inventory, payment, ticket status and
+    check-in are validated by the backend; client-side roles are not an authorization boundary.
+    Times are ISO 8601 with an explicit offset on input and UTC instants on output. Money is
+    integer cents. See docs/02-domain-and-api-contract.md for full state and ownership rules.
+servers:
+  - url: /api/v1
+    description: Same-origin API via the Nginx site proxy
+tags:
+  - name: Auth
+  - name: Events
+  - name: Organizer events
+  - name: Orders
+  - name: Tickets
+  - name: Notifications
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: registerUser
+      security: []
+      summary: Register a USER account
+      description: Role is assigned by the server. Request fields such as roles or userId are rejected as unknown.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created with USER role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      security: []
+      summary: Exchange credentials for a bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessToken'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: currentUser
+      security:
+        - bearerAuth: []
+      summary: Read the identity and roles in the current token
+      responses:
+        '200':
+          description: Current authenticated principal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  /events:
+    get:
+      tags: [Events]
+      operationId: listPublishedEvents
+      security: []
+      summary: Search published events
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          schema: {type: string, maxLength: 120}
+          description: Literal title substring; percent and underscore are escaped as text.
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: SQL-paginated published event summaries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageEventSummary'
+        '400': {$ref: '#/components/responses/BadRequest'}
+
+  /events/{id}:
+    get:
+      tags: [Events]
+      operationId: getPublishedEvent
+      security: []
+      summary: Read a published event and its sessions and ticket SKUs
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Published event detail, with current MySQL availability snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /organizer/events:
+    get:
+      tags: [Organizer events]
+      operationId: listOwnedEvents
+      security:
+        - bearerAuth: []
+      summary: List the current organizer's events
+      description: ADMIN may use organizer operations, but this list remains scoped to the current principal's own events.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Own event summaries only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageEventSummary'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Organizer events]
+      operationId: createDraftEvent
+      security:
+        - bearerAuth: []
+      summary: Create a DRAFT event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Created event with sessions list (initially empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  /organizer/events/{id}:
+    get:
+      tags: [Organizer events]
+      operationId: getOwnedEvent
+      security:
+        - bearerAuth: []
+      summary: Read an organizer event for draft editing
+      description: |
+        Stage 4 adds this owner-scoped read so a draft editor can reload after navigation.
+        ORGANIZER can read own events; ADMIN may read an event by ID. A non-owner and a
+        missing event are both 404. This operation is implemented in the Stage 4 backend branch.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Event detail including sessions and ticket SKUs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [Organizer events]
+      operationId: editDraftEvent
+      security:
+        - bearerAuth: []
+      summary: Edit a DRAFT event title and/or description
+      description: At least one property is required. Null is not a way to clear fields. Published events cannot be changed.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditEventRequest'
+      responses:
+        '200':
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /organizer/events/{eventId}/sessions:
+    post:
+      tags: [Organizer events]
+      operationId: createSession
+      security:
+        - bearerAuth: []
+      summary: Add a session to an owned DRAFT event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: {type: integer, format: int64, minimum: 1}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Created session; ticketSkus initially empty
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /organizer/sessions/{sessionId}/ticket-skus:
+    post:
+      tags: [Organizer events]
+      operationId: createTicketSku
+      security:
+        - bearerAuth: []
+      summary: Add a ticket SKU to an owned DRAFT event's session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: {type: integer, format: int64, minimum: 1}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkuRequest'
+      responses:
+        '201':
+          description: Created SKU; availableStock equals totalStock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketSku'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /organizer/events/{eventId}/publish:
+    post:
+      tags: [Organizer events]
+      operationId: publishEvent
+      security:
+        - bearerAuth: []
+      summary: Publish a valid DRAFT event
+      description: Requires at least one future session and each session to have at least one valid SKU.
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: {type: integer, format: int64, minimum: 1}
+      responses:
+        '200':
+          description: Published event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /orders:
+    get:
+      tags: [Orders]
+      operationId: listMyOrders
+      security:
+        - bearerAuth: []
+      summary: List the current principal's orders
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Own orders ordered by descending ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageOrder'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Orders]
+      operationId: reserveTicket
+      security:
+        - bearerAuth: []
+      summary: Reserve one ticket using a stable idempotency key
+      description: |
+        On ambiguous client/network failure, retry with the same key. Replaying the same key
+        and SKU returns the original order; reusing it for a different SKU is a conflict.
+        Request rate limiting may return 429. A sold-out 409 is distinct from a 429.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '200':
+          description: Idempotent replay of an existing order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '201':
+          description: New PENDING_PAYMENT order; inventory reserved for one ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429':
+          description: User rate limit exceeded; this does not mean the SKU is sold out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      operationId: getMyOrder
+      security:
+        - bearerAuth: []
+      summary: Read one order belonging to the current principal
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Order and ticket view, if one has been issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /orders/{id}/pay:
+    post:
+      tags: [Orders]
+      operationId: simulatePayment
+      security:
+        - bearerAuth: []
+      summary: Simulate payment of an unexpired order
+      description: This API changes local business state only; it does not charge real money.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: PAID order with its one issued ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /orders/{id}/cancel:
+    post:
+      tags: [Orders]
+      operationId: cancelMyOrder
+      security:
+        - bearerAuth: []
+      summary: Cancel an unexpired or expired pending order
+      description: Only PENDING_PAYMENT orders can be closed by the user; inventory is released once.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: CLOSED order (a repeated cancellation returns the same terminal order)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /me/tickets:
+    get:
+      tags: [Tickets]
+      operationId: listMyTickets
+      security:
+        - bearerAuth: []
+      summary: List tickets owned by the current principal
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: SQL-paginated tickets from paid orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageTicket'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  /me/tickets/{ticketId}/checkin-code:
+    post:
+      tags: [Tickets]
+      operationId: rotateMyCheckinCode
+      security:
+        - bearerAuth: []
+      summary: Create or rotate an eligible ticket's check-in code
+      description: Plaintext is returned only by this response. The previously issued code becomes invalid.
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: {type: integer, format: int64, minimum: 1}
+      responses:
+        '200':
+          description: One-time display of the newly generated code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckinCode'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /organizer/tickets/check-in:
+    post:
+      tags: [Tickets]
+      operationId: checkInTicket
+      security:
+        - bearerAuth: []
+      summary: Check in a paid, unused ticket owned by this organizer's event
+      description: ADMIN may check in across events. Successful time window is startsAt minus 2h through endsAt plus 1h, inclusive.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '200':
+          description: Ticket atomically changed to USED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckInResult'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /me/notifications:
+    get:
+      tags: [Notifications]
+      operationId: listMyNotifications
+      security:
+        - bearerAuth: []
+      summary: List the current principal's durable order notifications
+      description: |
+        Notifications are eventually consistent with order changes. They are generated from
+        ORDER_PAID / ORDER_CLOSED events; there is no API for another user's notifications.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Own notifications, newest ID first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageNotification'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  /actuator/health:
+    get:
+      tags: [Events]
+      operationId: health
+      security: []
+      summary: Read the public health probe
+      servers:
+        - url: /
+      responses:
+        '200':
+          description: Health response with detail disclosure disabled
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                type: object
+                additionalProperties: true
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer, format: int64, minimum: 1}
+    Page:
+      name: page
+      in: query
+      required: false
+      schema: {type: integer, minimum: 0, default: 0}
+    Size:
+      name: size
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+  responses:
+    BadRequest:
+      description: Invalid input or pagination
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Unauthorized:
+      description: Missing, expired or invalid bearer token
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Forbidden:
+      description: Authenticated principal lacks the required role
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    NotFound:
+      description: Missing or non-owned resource
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Conflict:
+      description: Invalid state, sold-out SKU, idempotency conflict, duplicate data or failed business precondition
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message, requestId, timestamp]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        requestId: {type: string}
+        timestamp: {type: string, format: date-time}
+      additionalProperties: false
+    User:
+      type: object
+      required: [id, email, roles]
+      properties:
+        id: {type: integer, format: int64, minimum: 1}
+        email: {type: string, format: email}
+        roles:
+          type: array
+          items: {type: string, enum: [USER, ORGANIZER, ADMIN]}
+      additionalProperties: false
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email, maxLength: 254}
+        password:
+          type: string
+          description: At least 10 Unicode code points and at most 72 UTF-8 bytes.
+      additionalProperties: false
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email, maxLength: 254}
+        password: {type: string}
+      additionalProperties: false
+    AccessToken:
+      type: object
+      required: [accessToken, tokenType, expiresInSeconds]
+      properties:
+        accessToken: {type: string}
+        tokenType: {type: string, const: Bearer}
+        expiresInSeconds: {type: integer, format: int64, minimum: 1}
+      additionalProperties: false
+    PageEventSummary:
+      allOf:
+        - $ref: '#/components/schemas/PageBase'
+        - type: object
+          properties:
+            items:
+              type: array
+              items: {$ref: '#/components/schemas/EventSummary'}
+    PageBase:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {type: object}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}
+    EventSummary:
+      type: object
+      required: [id, organizerId, title, description, status, createdAt, updatedAt]
+      properties:
+        id: {type: integer, format: int64}
+        organizerId: {type: integer, format: int64}
+        title: {type: string}
+        description: {type: string}
+        status: {type: string, enum: [DRAFT, PUBLISHED, CANCELLED]}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+      additionalProperties: false
+    Event:
+      allOf:
+        - $ref: '#/components/schemas/EventSummary'
+        - type: object
+          required: [sessions]
+          properties:
+            sessions:
+              type: array
+              items: {$ref: '#/components/schemas/Session'}
+    Session:
+      type: object
+      required: [id, eventId, title, startsAt, endsAt, location, ticketSkus]
+      properties:
+        id: {type: integer, format: int64}
+        eventId: {type: integer, format: int64}
+        title: {type: string}
+        startsAt: {type: string, format: date-time, description: UTC instant in response; explicit offset required in request}
+        endsAt: {type: string, format: date-time}
+        location: {type: string}
+        ticketSkus:
+          type: array
+          items: {$ref: '#/components/schemas/TicketSku'}
+      additionalProperties: false
+    TicketSku:
+      type: object
+      required: [id, sessionId, name, priceCents, totalStock, availableStock]
+      properties:
+        id: {type: integer, format: int64}
+        sessionId: {type: integer, format: int64}
+        name: {type: string}
+        priceCents: {type: integer, format: int64, minimum: 0}
+        totalStock: {type: integer, minimum: 0}
+        availableStock:
+          type: integer
+          minimum: 0
+          description: Query-time value from MySQL. It is informational; only the reserve transaction decides availability.
+      additionalProperties: false
+    CreateEventRequest:
+      type: object
+      required: [title, description]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 120}
+        description: {type: string, maxLength: 10000}
+      additionalProperties: false
+    EditEventRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title: {type: string, minLength: 1, maxLength: 120}
+        description: {type: string, maxLength: 10000}
+      additionalProperties: false
+    CreateSessionRequest:
+      type: object
+      required: [title, startsAt, endsAt, location]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 120}
+        startsAt: {type: string, format: date-time, description: Must include Z or an explicit UTC offset.}
+        endsAt: {type: string, format: date-time, description: Must include Z or an explicit UTC offset; later than startsAt.}
+        location: {type: string, minLength: 1, maxLength: 160}
+      additionalProperties: false
+    CreateSkuRequest:
+      type: object
+      required: [name, priceCents, totalStock]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        priceCents: {type: integer, format: int64, minimum: 0, description: Amount in the smallest currency unit (cents), not a decimal amount.}
+        totalStock: {type: integer, minimum: 0}
+      additionalProperties: false
+    CreateOrderRequest:
+      type: object
+      required: [skuId, idempotencyKey]
+      properties:
+        skuId: {type: integer, format: int64, minimum: 1}
+        idempotencyKey:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{8,64}$'
+          description: Stable per user operation; case-sensitive. Do not trim or replace during an ambiguous retry.
+      additionalProperties: false
+    OrderItem:
+      type: object
+      required: [id, skuId, priceCents, quantity]
+      properties:
+        id: {type: integer, format: int64}
+        skuId: {type: integer, format: int64}
+        priceCents: {type: integer, format: int64, minimum: 0}
+        quantity: {type: integer, const: 1}
+      additionalProperties: false
+    Ticket:
+      type: object
+      required: [id, orderItemId, orderId, eventId, sessionId, skuId, status, usedAt, createdAt]
+      properties:
+        id: {type: integer, format: int64}
+        orderItemId: {type: integer, format: int64}
+        orderId: {type: integer, format: int64}
+        eventId: {type: integer, format: int64}
+        sessionId: {type: integer, format: int64}
+        skuId: {type: integer, format: int64}
+        status: {type: string, enum: [UNUSED, USED]}
+        usedAt: {type: [string, 'null'], format: date-time}
+        createdAt: {type: string, format: date-time}
+      additionalProperties: false
+    Order:
+      type: object
+      required: [id, orderNo, status, totalPriceCents, expiresAt, paidAt, closedAt, createdAt, item, ticket]
+      properties:
+        id: {type: integer, format: int64}
+        orderNo: {type: string, pattern: '^[a-f0-9]{32}$'}
+        status: {type: string, enum: [PENDING_PAYMENT, PAID, CLOSED]}
+        totalPriceCents: {type: integer, format: int64, minimum: 0}
+        expiresAt: {type: string, format: date-time}
+        paidAt: {type: [string, 'null'], format: date-time}
+        closedAt: {type: [string, 'null'], format: date-time}
+        createdAt: {type: string, format: date-time}
+        item: {$ref: '#/components/schemas/OrderItem'}
+        ticket:
+          oneOf:
+            - $ref: '#/components/schemas/Ticket'
+            - type: 'null'
+      additionalProperties: false
+    CheckinCode:
+      type: object
+      required: [ticketId, checkinCode]
+      properties:
+        ticketId: {type: integer, format: int64}
+        checkinCode:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: One-time plaintext response. Backend stores only a SHA-256 digest; rotating invalidates the previous value.
+      additionalProperties: false
+    CheckInRequest:
+      type: object
+      required: [checkinCode]
+      properties:
+        checkinCode: {type: string, pattern: '^[A-Za-z0-9_-]{43}$'}
+      additionalProperties: false
+    CheckInResult:
+      type: object
+      required: [ticketId, status, usedAt]
+      properties:
+        ticketId: {type: integer, format: int64}
+        status: {type: string, const: USED}
+        usedAt: {type: string, format: date-time}
+      additionalProperties: false
+    Notification:
+      type: object
+      required: [id, orderId, eventType, message, createdAt]
+      properties:
+        id: {type: integer, format: int64}
+        orderId: {type: integer, format: int64}
+        eventType: {type: string, enum: [ORDER_PAID, ORDER_CLOSED]}
+        message: {type: string}
+        createdAt: {type: string, format: date-time}
+      additionalProperties: false
+    PageOrder:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Order'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}
+    PageTicket:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Ticket'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}
+    PageNotification:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Notification'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}

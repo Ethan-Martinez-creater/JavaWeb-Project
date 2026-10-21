@@ -79,6 +79,15 @@ GitHub Actions 在 PR 和 main 推送上运行 JDK 21、Spotless 与同一 Maven
 
 应用启动时会重复幂等声明 durable exchange/queue/binding。RabbitMQ 管理页位于 `http://127.0.0.1:15673`，用项目 `.env` 中的专用账户登录；不要对外暴露管理端口。所有密码经环境变量注入，不在命令参数或本文填入真实值。
 
+| Exchange `eventflow.events` 的 route | Queue | 后续路径 |
+|---|---|---|
+| `order.created` | `eventflow.order-expiry.delay` | 每消息 TTL 到期后 DLX 到 `order.expired` |
+| `order.expired` | `eventflow.order-expiry` | 事务检查关闭；拒绝时死信 `dead` |
+| `order.paid` / `order.closed` / `notification.retry` | `eventflow.notifications` | 通知事务提交后 ack；拒绝时死信 `dead` |
+| `order.expired.retry.delay` | `eventflow.order-expiry.retry` | 队列 TTL 后 DLX 到 `order.expired` |
+| `notification.retry.delay` | `eventflow.notifications.retry` | 队列 TTL 后 DLX 到 `notification.retry` |
+| `dead` | `eventflow.dead-letter` | 保留观察与人工单事件重驱动 |
+
 | 环境变量 | 默认值 / 用途 |
 |---|---|
 | `EVENT_CACHE_ENABLED` | true，公开目录 Cache Aside |
@@ -88,6 +97,7 @@ GitHub Actions 在 PR 和 main 推送上运行 JDK 21、Spotless 与同一 Maven
 | `MESSAGING_ENABLED` | true；false 只停 MQ 组件，业务事务仍写 Outbox |
 | `OUTBOX_PUBLISHER_ENABLED` / `OUTBOX_PUBLISHER_DELAY_MS` / `OUTBOX_PUBLISHER_BATCH_SIZE` | true / 1000 / 50 |
 | `OUTBOX_CLAIM_LEASE_MS` / `RABBIT_CONFIRM_TIMEOUT_MS` | 30000 / 5000；lease 须覆盖单次确认窗口 |
+| `RABBITMQ_CONNECTION_TIMEOUT` / `RABBITMQ_CHANNEL_RPC_TIMEOUT` | 2s / 2s，限制连接与 channel RPC 等待 |
 | `OUTBOX_PUBLISH_BACKOFF_BASE_MS` / `OUTBOX_PUBLISH_BACKOFF_MAX_MS` | 1000 / 300000；持久退避，长期停机后继续恢复 |
 | `ORDER_EXPIRY_LISTENER_ENABLED` / `NOTIFICATION_LISTENER_ENABLED` | true / true，可暂停消费者验证兜底 |
 | `MESSAGE_CONSUMER_MAX_RETRIES` / `MESSAGE_CONSUMER_RETRY_DELAY_MS` | 3 / 5000，超限进入 DLQ |

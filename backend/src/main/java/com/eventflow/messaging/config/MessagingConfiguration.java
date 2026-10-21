@@ -4,9 +4,9 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Declarables;
-import org.springframework.amqp.core.ExchangeBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -37,7 +37,7 @@ public class MessagingConfiguration {
   static class RabbitTopologyConfiguration {
     @Bean
     Declarables messagingTopology(MessagingProperties properties) {
-      var exchange = ExchangeBuilder.topicExchange(MessagingNames.EXCHANGE).durable(true).build();
+      var exchange = new TopicExchange(MessagingNames.EXCHANGE, true, false);
       Queue expiryDelay =
           QueueBuilder.durable(MessagingNames.ORDER_EXPIRY_DELAY_QUEUE)
               .withArgument("x-dead-letter-exchange", MessagingNames.EXCHANGE)

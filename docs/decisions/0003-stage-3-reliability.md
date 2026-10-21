@@ -78,6 +78,8 @@ TTL 从订单 `expires_at` 计算；早到、晚到、重复、乱序都必须�
 
 扫描每批最多 100 条，同时过滤 `expiry_retry_at <= now`。失败订单由另一个服务的 `REQUIRES_NEW` 事务写退避时间与次数；原关单事务先回滚，后续健康订单可在下一轮推进。默认退避 1 秒开始指数增长，最多 5 分钟。扫描器本身不持有跨批事务，也不通过 `this` 自调用事务方法；如果连退避写入也因 MySQL 故障失败，记录安全异常类型并由后续调度重试。
 
+调度线程池为两个线程，发布和 DB 扫描各占一个任务槽，MQ 网络等待不会占据唯一调度线程而饿死 DB 兜底。RabbitMQ 连接、channel RPC 和 confirm 等待分别设超时；不要把调度池缩为单线程。
+
 ## 版本与替代方案
 
 沿用 Java 21、Boot 4.1.1、MyBatis Starter 4.1.0、MySQL 8.4.11、Testcontainers 1.21.4。新增 Boot 管理的 Redis/AMQP Starter 4.1.1，实际解析 Spring Data Redis / Spring AMQP 4.1.1、Lettuce 7.5.2.RELEASE、Rabbit Java Client 5.30.0。

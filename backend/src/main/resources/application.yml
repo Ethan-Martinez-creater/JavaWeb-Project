@@ -1,6 +1,11 @@
 spring:
   application:
     name: eventflow
+  task:
+    scheduling:
+      pool:
+        # MQ confirmation waits must not block independent database expiry compensation.
+        size: 2
   datasource:
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3307/eventflow?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC}
     username: ${DB_USERNAME}
@@ -23,6 +28,7 @@ spring:
     username: ${RABBITMQ_USERNAME:}
     password: ${RABBITMQ_PASSWORD:}
     connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT:2s}
+    channel-rpc-timeout: ${RABBITMQ_CHANNEL_RPC_TIMEOUT:2s}
     publisher-confirm-type: correlated
     publisher-returns: true
     template:

@@ -50,10 +50,18 @@ public class ReliableMessageDelivery {
   }
 
   public void quarantine(String eventIdOrReason, String reasonCode) {
+    quarantine(eventIdOrReason, reasonCode, 0);
+  }
+
+  private void quarantine(String eventIdOrReason, String reasonCode, int retries) {
     publisher.publish(
         MessagingNames.DEAD_LETTER_ROUTE,
         eventIdOrReason,
-        Map.of(MessagingNames.ERROR_CODE_HEADER, reasonCode),
+        Map.of(
+            MessagingNames.ERROR_CODE_HEADER,
+            reasonCode,
+            MessagingNames.RETRY_COUNT_HEADER,
+            retries),
         null);
   }
 
@@ -61,7 +69,7 @@ public class ReliableMessageDelivery {
       Message message, String eventId, String retryRoute, String reasonCode) {
     int retryCount = retryCount(message);
     if (retryCount >= properties.getConsumerMaxRetries()) {
-      quarantine(eventId, reasonCode);
+      quarantine(eventId, reasonCode, retryCount);
       return;
     }
     String delayRoute =

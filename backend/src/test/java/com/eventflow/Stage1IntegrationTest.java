@@ -55,7 +55,14 @@ import tools.jackson.databind.json.JsonMapper;
 @Testcontainers
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "app.orders.expiry-scan-enabled=false")
+    properties = {
+      "app.orders.expiry-scan-enabled=false",
+      "app.events.cache.enabled=false",
+      "app.rate-limit.orders.enabled=false",
+      "app.messaging.enabled=false",
+      "management.health.redis.enabled=false",
+      "management.health.rabbit.enabled=false"
+    })
 class Stage1IntegrationTest {
   private static final ObjectMapper JSON = JsonMapper.builder().build();
   private static final HttpClient HTTP =
@@ -147,6 +154,9 @@ class Stage1IntegrationTest {
     if (FRESH_SCHEMA_CHECKED.compareAndSet(false, true)) {
       verifyFreshDatabaseHasFlywaySchemaAndNoDefaultAccounts();
     }
+    jdbc.execute("DELETE FROM user_notifications");
+    jdbc.execute("DELETE FROM consumed_events");
+    jdbc.execute("DELETE FROM outbox_events");
     jdbc.execute("DELETE FROM ticket_skus");
     jdbc.execute("DELETE FROM event_sessions");
     jdbc.execute("DELETE FROM events");

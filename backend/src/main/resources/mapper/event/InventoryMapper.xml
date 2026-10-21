@@ -23,4 +23,10 @@
     UPDATE ticket_skus SET available_stock = available_stock + 1, updated_at = UTC_TIMESTAMP(6)
     WHERE id = #{skuId} AND available_stock &lt; total_stock
   </update>
+  <select id="listAvailableStock" resultType="com.eventflow.event.infrastructure.InventoryMapper$SkuStock">
+    SELECT id, available_stock FROM ticket_skus WHERE id IN
+    <foreach collection="skuIds" item="skuId" open="(" separator="," close=")">
+      #{skuId}
+    </foreach>
+  </select>
 </mapper>

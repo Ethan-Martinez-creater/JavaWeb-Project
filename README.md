@@ -1,10 +1,10 @@
 # EventFlow — 活动票务预约与核销平台
 
-Java 21 / Spring Boot 4.1.1 / MyBatis 的模块化单体。已验收 **Stage 1（PR #2）与 Stage 2（PR #3）**：JWT/RBAC、活动/场次/票种、订单库存预占、模拟支付、超时关单及票据核销。**当前授权 Stage 3：Redis 缓存/限流、RabbitMQ 可靠消息与异步通知**；前端 Vue 留至 Stage 4。参见 [Stage 3 当前任务书](docs/09-stage-3-codex-task.md)。
+Java 21 / Spring Boot 4.1.1 / MyBatis 的模块化单体。Stage 1/2 已验收；本 Stage 3 分支增加 Redis 元数据缓存/下单限流、事务 Outbox、RabbitMQ 到期触发与本人站内通知，交付后等待审核。前端 Vue 留至未授权的 Stage 4。参见 [Stage 3 任务书](docs/09-stage-3-codex-task.md) 与 [交接报告](docs/handoffs/stage-3.md)。
 
 ## 环境与数据隔离
 
-复用本机已有 JDK 21.0.9、Maven 3.8.6，无需重新安装。默认 Java 17 不改动；下列命令只改变当前 PowerShell 7+ 会话。Docker Desktop 需运行 Linux engine。开发 MySQL 使用独立 `mysql:8.4`、项目 named volume、`127.0.0.1:3307:3306`；不要修改或停止本机已有的 3306 MySQL 5.7，也不要将其数据目录挂入容器。集成测试另建临时 MySQL 容器并使用动态端口。
+复用本机已有 JDK 21.0.9、Maven 3.8.6，无需重新安装。默认 Java 17 不改动；下列命令只改变当前 PowerShell 7+ 会话。Docker Desktop 需运行 Linux engine。开发容器使用固定 tag/digest、项目 named volume 和 loopback 端口：MySQL 8.4.11 为 `3307:3306`、Redis 8.4.7 为 `16379:6379`、RabbitMQ 4.3.6 为 `5673:5672`（管理页 `15673:15672`）。不要修改或停止本机 MySQL 5.7/3306、Redis 或其他项目。集成测试使用自己的动态端口和临时数据。
 
 ```powershell
 $env:JAVA_HOME = 'D:\JAVA21'
@@ -34,7 +34,7 @@ Windows Wrapper 要求 PowerShell 7+（`pwsh`）。Wrapper 固定发行版 SHA-2
 
 ## 启动开发库与应用
 
-在仓库根目录复制 `.env.example` 为 **不提交的** `.env`，填写自选的本项目专用数据库密码、根密码和至少 32 字节的随机 JWT 密钥。不要复用现有数据库凭据。Compose 从该文件加载数据库配置；Spring Boot 不会自动读取这个文件，应用进程的 `DB_USERNAME`、`DB_PASSWORD`、`JWT_SECRET` 须另行通过当前终端或 IDE 注入。
+在仓库根目录复制 `.env.example` 为 **不提交的** `.env`，填写本项目专用数据库、Redis、RabbitMQ 密码和至少 32 字节的随机 JWT 密钥。不要复用现有服务凭据。Compose 加载容器配置；Spring Boot 不会自动读取 `.env`，应用进程所需变量须通过当前终端或 IDE 注入。Redis/RabbitMQ 密码不提供可误用的生产默认值；Compose 对缺少密码直接报错。
 
 ```powershell
 Copy-Item -LiteralPath '.env.example' -Destination '.env'
@@ -43,7 +43,7 @@ docker compose --env-file .env -f infra/docker-compose.dev.yml up -d --wait --wa
 docker compose --env-file .env -f infra/docker-compose.dev.yml ps
 ```
 
-应用配置：`DB_URL` 默认连接 `127.0.0.1:3307/eventflow`，`DB_USERNAME` 与 `DB_PASSWORD` 对应上述专用用户；若修改 `DB_NAME`，应同步设置 `DB_URL`。JDBC 连接统一 UTC。`JWT_SECRET` 没有生产默认值，缺失或过短会拒绝启动。Flyway 在启动时从空库执行 `V1__identity_and_event_catalog.sql`；不手工建表或修改已有迁移。
+应用配置：`DB_URL` 默认连接 `127.0.0.1:3307/eventflow`，`DB_USERNAME` 与 `DB_PASSWORD` 对应上述专用用户；若修改 `DB_NAME`，同步设置 `DB_URL`。JDBC 连接统一 UTC。`JWT_SECRET` 缺失或过短会拒绝启动。Flyway 顺序执行 V1→V2→V3；不手工建表或修改已有迁移。缓存连接 `REDIS_HOST/PORT/PASSWORD`，消息连接 `RABBITMQ_HOST/PORT/USERNAME/PASSWORD`，默认端口匹配上述 Compose。
 
 ```powershell
 # 先通过本地终端/IDE安全注入 DB_USERNAME、DB_PASSWORD、JWT_SECRET。
@@ -71,9 +71,88 @@ Set-Location backend
 .\mvnw.cmd -B spotless:check verify
 ```
 
-测试启动真正的 MySQL 8.4（Testcontainers），通过 HTTP 调用完整安全链，检查 Flyway、约束、所有权、认证、分页、草稿不可见及并发发布。Docker 不可用会明确失败；没有 H2、Docker 不可用时自动跳过或硬编码本机测试库。无需启动开发 Compose，也不使用 3306/3307 的现有数据库。仅在主动修正格式时执行 `.\mvnw.cmd spotless:apply`，然后重跑上述检查。
+测试启动真正的 MySQL 8.4、Redis 和 RabbitMQ（Testcontainers），通过 HTTP/应用入口、真实队列及数据库断言验证。原 Stage 1/2 的 30 项测试独立关闭缓存/限流/消息运行回归，Stage 3 新测试启用真实中间件。Docker 不可用会失败；没有 H2 或自动跳过。无需启动开发 Compose，也不连接现有开发库。仅在修正格式时执行 `.\mvnw.cmd spotless:apply`，然后重跑检查。
 
 GitHub Actions 在 PR 和 main 推送上运行 JDK 21、Spotless 与同一 Maven Wrapper verify。真实 MySQL Testcontainers 会验证 100 库存下由 1000 个不同用户发起的并发下单；CI 同时上传测试报告和并发结果 artifact。CI 未通过时不能将数据库 Gate 视为通过。Stage 1 的已验收证据见 [Stage 1 交接](docs/handoffs/stage-1.md)；Stage 2 的实际测试/CI 结果与风险由 [Stage 2 交接](docs/handoffs/stage-2.md) 记录，不在 README 预报未执行结果。
+
+## Stage 3 配置、闭环与故障演练
+
+应用启动时会重复幂等声明 durable exchange/queue/binding。RabbitMQ 管理页位于 `http://127.0.0.1:15673`，用项目 `.env` 中的专用账户登录；不要对外暴露管理端口。所有密码经环境变量注入，不在命令参数或本文填入真实值。
+
+| Exchange `eventflow.events` 的 route | Queue | 后续路径 |
+|---|---|---|
+| `order.created` | `eventflow.order-expiry.delay` | 每消息 TTL 到期后 DLX 到 `order.expired` |
+| `order.expired` | `eventflow.order-expiry` | 事务检查关闭；拒绝时死信 `dead` |
+| `order.paid` / `order.closed` / `notification.retry` | `eventflow.notifications` | 通知事务提交后 ack；拒绝时死信 `dead` |
+| `order.expired.retry.delay` | `eventflow.order-expiry.retry` | 队列 TTL 后 DLX 到 `order.expired` |
+| `notification.retry.delay` | `eventflow.notifications.retry` | 队列 TTL 后 DLX 到 `notification.retry` |
+| `dead` | `eventflow.dead-letter` | 保留观察与人工单事件重驱动 |
+
+| 环境变量 | 默认值 / 用途 |
+|---|---|
+| `EVENT_CACHE_ENABLED` | true，公开目录 Cache Aside |
+| `EVENT_CACHE_LIST_TTL_MS` / `EVENT_CACHE_DETAIL_TTL_MS` / `EVENT_CACHE_TTL_JITTER_MS` | 60000 / 300000 / 15000；仅缓存稳定元数据 |
+| `REDIS_CONNECT_TIMEOUT` / `REDIS_COMMAND_TIMEOUT` | 300ms / 300ms；故障时查询回源、限流 fail-open |
+| `ORDER_RATE_LIMIT_ENABLED` / `ORDER_RATE_LIMIT` / `ORDER_RATE_LIMIT_WINDOW_MS` | true / 20 / 60000；认证 userId 固定窗口 |
+| `MESSAGING_ENABLED` | true；false 只停 MQ 组件，业务事务仍写 Outbox |
+| `OUTBOX_PUBLISHER_ENABLED` / `OUTBOX_PUBLISHER_DELAY_MS` / `OUTBOX_PUBLISHER_BATCH_SIZE` | true / 1000 / 50 |
+| `OUTBOX_CLAIM_LEASE_MS` / `RABBIT_CONFIRM_TIMEOUT_MS` | 30000 / 5000；lease 须覆盖单次确认窗口 |
+| `RABBITMQ_CONNECTION_TIMEOUT` / `RABBITMQ_CHANNEL_RPC_TIMEOUT` | 2s / 2s，限制连接与 channel RPC 等待 |
+| `OUTBOX_PUBLISH_BACKOFF_BASE_MS` / `OUTBOX_PUBLISH_BACKOFF_MAX_MS` | 1000 / 300000；持久退避，长期停机后继续恢复 |
+| `ORDER_EXPIRY_LISTENER_ENABLED` / `NOTIFICATION_LISTENER_ENABLED` | true / true，可暂停消费者验证兜底 |
+| `MESSAGE_CONSUMER_MAX_RETRIES` / `MESSAGE_CONSUMER_RETRY_DELAY_MS` | 3 / 5000，超限进入 DLQ |
+| `ORDER_EXPIRY_SCAN_ENABLED` / `ORDER_EXPIRY_SCAN_DELAY_MS` | true / 30000，独立 MySQL 扫描 |
+| `ORDER_EXPIRY_RETRY_BASE_MS` / `ORDER_EXPIRY_RETRY_MAX_MS` | 1000 / 300000，毒单持久退避 |
+
+沿用下方订单演示完成一次支付/取消，再查询本人通知。异步通知可能稍晚出现，列表按 id 倒序；令牌只保留在内存变量中。
+
+```powershell
+$notifications = Invoke-RestMethod -Uri "$api/me/notifications?page=0&size=20" -Headers $headers -TimeoutSec 10
+# 缓存变热后继续下单，再读详情，availableStock 每次仍来自 MySQL。
+$detail = Invoke-RestMethod -Uri "$api/events/$($draft.id)" -TimeoutSec 10
+```
+
+下面只操作本项目 Compose，停止后仍保留卷。先用专用演示账户创建未来场次和库存，记录订单 ID；不要在生产数据上注入故障。
+
+```powershell
+# 从仓库根目录；应用继续运行。
+docker compose --env-file .env -f infra/docker-compose.dev.yml stop redis
+# 公开活动应继续可查；下单的 Redis 限流 fail-open，MySQL 仍防超卖。
+docker compose --env-file .env -f infra/docker-compose.dev.yml start redis
+
+docker compose --env-file .env -f infra/docker-compose.dev.yml stop rabbitmq
+# 此时新下单/支付仍提交，outbox_events 保持 PENDING/退避；到期由 DB scanner 关单。
+docker compose --env-file .env -f infra/docker-compose.dev.yml start rabbitmq
+docker compose --env-file .env -f infra/docker-compose.dev.yml ps
+# 恢复后等待 next_attempt_at，观察 Outbox SENT 与本人通知；不要打印 payload。
+```
+
+若使用已有命名项目启动，请在所有命令加相同 `-p 项目名`。暂停到期消费者可临时为当前应用进程设置 `ORDER_EXPIRY_LISTENER_ENABLED=false` 并重启应用，保留 `ORDER_EXPIRY_SCAN_ENABLED=true`；只改该进程，不写系统环境。再恢复变量并重启以检验重复/晚到消息。测试中的消费者启停、MQ stop_app/start_app、未路由、Redis 超时及 101 毒单均有可重复自动断言，详见交接矩阵。
+
+只读观察 SQL（通过项目专用数据库连接执行，避免在 CLI 参数中明文给密码）：
+
+```sql
+SELECT status, COUNT(*) AS events FROM outbox_events GROUP BY status;
+SELECT event_id, aggregate_id, event_type, status, attempts, next_attempt_at,
+       lease_until, last_error FROM outbox_events ORDER BY created_at LIMIT 20;
+SELECT id, status, expires_at, expiry_retry_at, expiry_retry_attempts
+FROM orders WHERE status = 'PENDING_PAYMENT' ORDER BY expiry_retry_at, expires_at LIMIT 101;
+```
+
+Poison message 会进入 durable DLQ，在管理页观察积压和 headers，消息正文应仅为事件 UUID。先修复根因，再对**一个已确认的 canonical 事件 ID**进行人工重驱动：将该 Outbox 的 SENT 状态重置为 PENDING，随后由正常 publisher 执行 confirms。DLQ 原始记录保留供排查；不要清空整队列，也不要对 CLAIMED 中的活跃事件重置 lease。
+
+```sql
+-- 用管理页/只读 SQL 确认的单个 UUID 替换 :event_id；预先确认根因已修复。
+UPDATE outbox_events SET status = 'PENDING', next_attempt_at = UTC_TIMESTAMP(6),
+  lease_owner = NULL, lease_until = NULL, published_at = NULL, last_error = NULL
+WHERE event_id = :event_id AND status = 'SENT';
+```
+
+该重驱动会重新投递同一 eventId，唯一约束防止已成功通知重复。没有对应 canonical Outbox 的伪造消息不应补造业务事件；保留其 DLQ 证据即可。单节点 durable 队列不是磁盘灾难恢复方案，TTL/DLX 也不是精准定时器；MySQL scanner 与 Outbox 保留记录提供应用层恢复边界。
+
+- [ADR 0003：缓存与可靠性设计](docs/decisions/0003-stage-3-reliability.md)
+- [Stage 3 关键调用链](docs/learning/stage-3-key-flows.md)
+- [Stage 3 验证、CI 与故障证据](docs/handoffs/stage-3.md)
 
 ## Stage 2 设计与实现资料
 
@@ -157,7 +236,8 @@ $checkInResult = Invoke-RestMethod -Method Post -Uri "$api/organizer/tickets/che
 - `backend/src/main/java/com/eventflow/event`：活动、场次、票种与公开库存服务；下单通过 InventoryService → InventoryMapper XML。
 - `backend/src/main/java/com/eventflow/common`：统一错误、requestId、安全配置与分页响应。
 - `backend/src/main/java/com/eventflow/order`、`ticket`：订单/票据 API、事务服务、Mapper 与状态。
-- `backend/src/main/resources/db/migration`：Flyway V1/V2 顺序迁移。
+- `backend/src/main/java/com/eventflow/messaging`、`notification`：Outbox、确认发布、幂等消费、到期触发与本人通知。
+- `backend/src/main/resources/db/migration`：Flyway V1/V2/V3 顺序迁移。
 - `backend/src/test`：真实 MySQL 与安全边界测试。
 - `infra/docker-compose.dev.yml`：本项目独立开发库。
 - [ADR 0001](docs/decisions/0001-stage-1-security-and-persistence.md)：Stage 1 JWT、UTC、迁移与活动发布锁。

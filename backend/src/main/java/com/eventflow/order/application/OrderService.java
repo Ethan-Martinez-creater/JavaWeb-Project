@@ -3,6 +3,7 @@ package com.eventflow.order.application;
 import com.eventflow.common.error.ApiException;
 import com.eventflow.common.web.PageResponse;
 import com.eventflow.event.application.InventoryService;
+import com.eventflow.messaging.application.OutboxRecorder;
 import com.eventflow.order.domain.OrderEntity;
 import com.eventflow.order.domain.OrderItemEntity;
 import com.eventflow.order.domain.OrderStatus;
@@ -30,13 +31,19 @@ public class OrderService {
   private final InventoryService inventory;
   private final TicketService tickets;
   private final Clock clock;
+  private final OutboxRecorder outbox;
 
   public OrderService(
-      OrderMapper mapper, InventoryService inventory, TicketService tickets, Clock clock) {
+      OrderMapper mapper,
+      InventoryService inventory,
+      TicketService tickets,
+      Clock clock,
+      OutboxRecorder outbox) {
     this.mapper = mapper;
     this.inventory = inventory;
     this.tickets = tickets;
     this.clock = clock;
+    this.outbox = outbox;
   }
 
   @Transactional
@@ -80,6 +87,7 @@ public class OrderService {
     item.setPriceCents(reservation.priceCents());
     item.setQuantity(1);
     mapper.insertItem(item);
+    outbox.record("ORDER_CREATED", order.getId(), userId, expiry);
     return new CreateResult(view(mapper.findOwned(order.getId(), userId)), true);
   }
 
@@ -113,6 +121,7 @@ public class OrderService {
     }
     OrderItemEntity item = requireItem(id);
     tickets.issue(item.getId(), userId, now.toInstant(ZoneOffset.UTC));
+    outbox.record("ORDER_PAID", id, userId, instant(order.getExpiresAt()));
     return view(mapper.findOwned(id, userId));
   }
 
@@ -149,6 +158,7 @@ public class OrderService {
       throw new IllegalStateException("Order close invariant failed");
     }
     inventory.release(requireItem(order.getId()).getSkuId());
+    outbox.record("ORDER_CLOSED", order.getId(), order.getUserId(), instant(order.getExpiresAt()));
   }
 
   private OrderView view(OrderEntity order) {

@@ -132,7 +132,7 @@ V2 只能追加迁移，禁止修改已发布的 V1。主要关系如下：
 - 取消/过期关闭先取得锁：更新 CLOSED、释放库存并提交；支付方随后读到 CLOSED 返回 409，不会签票。
 - 两个事务任一失败则本地数据库写入回滚；无中间“订单已提交但库存/票据未完成”的状态。
 
-支付使用可信 `Clock` 判定 `expiresAt > now`。已过期支付返回 409，不在支付请求里顺带关单；扫描器负责可重试补偿。`OrderExpiryScanner.scanOnce()` 用 `(status,expires_at,id)` 索引最多选 100 个到期候选，对每个 ID 单独代理调用 `OrderService.closeExpired`，每单独立事务，避免 Spring `@Transactional` 自调用失效。默认调度间隔 30 秒，可用 `app.orders.expiry-scan-enabled=false` 禁用；单单失败记录 orderId 和异常类型，后续扫描重新查询持久化的待付记录。
+支付使用可信 `Clock` 判定 `expiresAt > now`。已过期支付返回 409，不在支付请求里顺带关单；扫描器负责可重试补偿。`OrderExpiryScanner.scanOnce()` 最多选 100 个到期且重试时间已到的候选，以 `(status,expiry_retry_at,expires_at,id)` 索引及重试时间优先排序，对每个 ID 单独代理调用 `OrderService.closeExpired`，每单独立事务，避免 Spring `@Transactional` 自调用失效。默认调度间隔 30 秒，可用 `app.orders.expiry-scan-enabled=false` 禁用；失败事务回滚后，由独立 `REQUIRES_NEW` 服务持久化指数退避，健康未尝试订单优先推进，异常日志仅含 orderId 与类型。调度池使用两个线程，使 MQ 发布等待不会占据 DB 扫描的唯一执行线程。
 
 ### 5.5 票据与核销码语义
 
@@ -140,8 +140,29 @@ V2 只能追加迁移，禁止修改已发布的 V1。主要关系如下：
 
 核销时间窗为场次开始前 2 小时至结束后 1 小时，含起止边界，时间来自可注入 `Clock`。处理顺序为：验证格式、按摘要定位票、锁定票行、再核对当前摘要，随后验证订单已 PAID、票 UNUSED、操作者是活动主办方或 ADMIN、时间在窗口内；最后原子改为 USED 并写 SUCCESS 记录后提交。先按摘要找票再加锁并复核摘要，可让核销与码轮换竞争时旧码失败。PAID 不可逆，因此资格读取不额外锁订单，避免票行与订单行反向锁序。失败不写 check-in 记录；错误响应不泄漏完整码。
 
-## 6. Stage 3 中间件规则（仅供设计）
+## 6. Stage 3 缓存、限流与可靠消息契约
 
-- Redis Cache Aside 用于活动信息热点缓存（读缓存、回源、更新后失效、TTL 和缓存雪崩/穿透基本防护），库存的最终真值仍在 MySQL。
-- RabbitMQ 用于异步通知和订单超时关闭；默认可使用 TTL + DLX/死信队列，不依赖可选的 delayed-message 插件。超时条件最终以订单 expires_at + MySQL 状态为准；定时补偿保障异常漏处理。
-- 生产消息需说明 publish confirms、消费 ack/nack、重试/死信、消息持久化、重投幂等；Outbox 或同等机制解决数据库提交与发送消息原子性间隙。
+### 6.1 公开目录与下单
+
+公开活动的 JSON 保持兼容。Redis 只缓存已发布元数据；详情 `availableStock` 每次用批量 MySQL 查询补齐，始终只是查询时库存，下单仍由 MySQL 条件更新裁决。缺失/草稿不缓存，发布事务提交后失效；Redis 停用时公开查询退回 MySQL。已发布元数据在本阶段不可编辑，失效丢失时列表最多陈旧到 TTL 加抖动结束，默认 60 秒加最多 15 秒抖动。
+
+`POST /api/v1/orders` 在通过既有认证/角色检查后，按认证 userId 原子计数，默认 20 请求/60 秒固定窗口。包含幂等重放；不同用户独立。超限返回 HTTP 429，`code=RATE_LIMIT_EXCEEDED`，仍为 `{code,message,requestId,timestamp}`。Redis 故障采用 fail-open；这会放宽请求流量限制，不改变库存、幂等和终态约束。配置可关闭/提高限额供既有并发回归使用。
+
+### 6.2 本人通知
+
+| 方法与路径 | 授权 | 成功语义 | 拒绝语义 |
+|---|---|---|---|
+| `GET /api/v1/me/notifications?page=0&size=20` | USER 或 ADMIN；始终本人 | 200，SQL 分页 `{items,page,size,total}`；按 id 倒序 | 未登录 401，纯 ORGANIZER 403，非法分页 400 |
+
+通知 DTO 固定为 `{id,orderId,eventType,message,createdAt}`，createdAt 为 UTC。通知来自实际 `ORDER_PAID` / `ORDER_CLOSED` 状态变化，最终一致、可能晚于业务响应；无未读/删除/任意用户查询接口。业务唯一性为 eventId，一次事件最多生成一条通知。通知不含密码、完整 JWT、核销原文/摘要或内部完整 payload。
+
+### 6.3 V3 数据与异步边界
+
+- `outbox_events`：eventId 主键、聚合订单 ID、事件类型、canonical payload、创建时间、PENDING/CLAIMED/SENT、attempts、下次尝试、lease owner/until、发布时间与安全错误分类；不设订单外键，使事件历史与聚合保留期独立。仅实际创建、支付、关闭状态变化在原 MySQL 事务内写入。
+- `consumed_events`：`(event_id,consumer_name)` 主键，在消费业务事务内持久去重。
+- `user_notifications`：eventId 唯一、用户 FK、订单 ID、类型、消息、UTC 时间，`(user_id,id)` 索引服务本人分页。
+- `orders.expiry_retry_at/expiry_retry_attempts`：只控制失败到期补偿的持久退避，不改变订单状态机；扫描过滤到期且已到重试时刻的记录。
+
+发布采用 durable topology、持久消息、correlated confirms 和 mandatory return 检查；超时/失败按封顶延迟重试，claim 失效后恢复。消费在 MySQL 事务提交后才手动 ack；重复投递无重复业务效果，失败有限次重试后进入 DLQ。RabbitMQ 提供至少一次处理设计，不承诺端到端 exactly-once。
+
+创建事件经每消息 TTL + DLX 触发到期检查，可能因队头阻塞或故障延迟。早到不能关闭、终态不能再次释放；实际判断始终在 MySQL 订单锁与 `expires_at` 上。独立 DB scanner 保留，失败项持久退避，避免最早 100 毒单饿死后续订单。详见 [ADR 0003](decisions/0003-stage-3-reliability.md)。

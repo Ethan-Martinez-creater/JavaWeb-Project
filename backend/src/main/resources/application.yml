@@ -1,6 +1,11 @@
 spring:
   application:
     name: eventflow
+  task:
+    scheduling:
+      pool:
+        # MQ confirmation waits must not block independent database expiry compensation.
+        size: 2
   datasource:
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3307/eventflow?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC}
     username: ${DB_USERNAME}
@@ -10,6 +15,29 @@ spring:
       connection-init-sql: SET time_zone = '+00:00'
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:16379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:300ms}
+      timeout: ${REDIS_COMMAND_TIMEOUT:300ms}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5673}
+    username: ${RABBITMQ_USERNAME:}
+    password: ${RABBITMQ_PASSWORD:}
+    connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT:2s}
+    channel-rpc-timeout: ${RABBITMQ_CHANNEL_RPC_TIMEOUT:2s}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+        prefetch: 10
   jackson:
     deserialization:
       fail-on-unknown-properties: true
@@ -41,9 +69,35 @@ mybatis:
     map-underscore-to-camel-case: true
 
 app:
+  messaging:
+    enabled: ${MESSAGING_ENABLED:true}
+    publisher-schedule-enabled: ${OUTBOX_PUBLISHER_ENABLED:true}
+    publisher-delay-ms: ${OUTBOX_PUBLISHER_DELAY_MS:1000}
+    publisher-batch-size: ${OUTBOX_PUBLISHER_BATCH_SIZE:50}
+    claim-lease-ms: ${OUTBOX_CLAIM_LEASE_MS:30000}
+    confirm-timeout-ms: ${RABBIT_CONFIRM_TIMEOUT_MS:5000}
+    publish-backoff-base-ms: ${OUTBOX_PUBLISH_BACKOFF_BASE_MS:1000}
+    publish-backoff-max-ms: ${OUTBOX_PUBLISH_BACKOFF_MAX_MS:300000}
+    expiry-listener-enabled: ${ORDER_EXPIRY_LISTENER_ENABLED:true}
+    notification-listener-enabled: ${NOTIFICATION_LISTENER_ENABLED:true}
+    consumer-max-retries: ${MESSAGE_CONSUMER_MAX_RETRIES:3}
+    consumer-retry-delay-ms: ${MESSAGE_CONSUMER_RETRY_DELAY_MS:5000}
   orders:
     expiry-scan-enabled: ${ORDER_EXPIRY_SCAN_ENABLED:true}
-    expiry-scan-delay-ms: 30000
+    expiry-scan-delay-ms: ${ORDER_EXPIRY_SCAN_DELAY_MS:30000}
+    expiry-retry-base-ms: ${ORDER_EXPIRY_RETRY_BASE_MS:1000}
+    expiry-retry-max-ms: ${ORDER_EXPIRY_RETRY_MAX_MS:300000}
+  events:
+    cache:
+      enabled: ${EVENT_CACHE_ENABLED:true}
+      list-ttl-ms: ${EVENT_CACHE_LIST_TTL_MS:60000}
+      detail-ttl-ms: ${EVENT_CACHE_DETAIL_TTL_MS:300000}
+      ttl-jitter-ms: ${EVENT_CACHE_TTL_JITTER_MS:15000}
+  rate-limit:
+    orders:
+      enabled: ${ORDER_RATE_LIMIT_ENABLED:true}
+      limit: ${ORDER_RATE_LIMIT:20}
+      window-ms: ${ORDER_RATE_LIMIT_WINDOW_MS:60000}
   jwt:
     secret: ${JWT_SECRET}
     issuer: eventflow

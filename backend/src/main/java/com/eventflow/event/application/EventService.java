@@ -2,11 +2,15 @@ package com.eventflow.event.application;
 
 import com.eventflow.common.error.ApiException;
 import com.eventflow.common.web.PageResponse;
+import com.eventflow.event.application.PublishedEventCacheData.Detail;
+import com.eventflow.event.application.PublishedEventCacheData.Page;
 import com.eventflow.event.domain.EventEntity;
 import com.eventflow.event.domain.EventStatus;
 import com.eventflow.event.domain.SessionEntity;
 import com.eventflow.event.domain.SkuEntity;
 import com.eventflow.event.infrastructure.EventMapper;
+import com.eventflow.event.infrastructure.InventoryMapper;
+import com.eventflow.event.infrastructure.RedisPublishedEventCache;
 import com.eventflow.event.web.EventDtos.CreateEvent;
 import com.eventflow.event.web.EventDtos.CreateSession;
 import com.eventflow.event.web.EventDtos.CreateSku;
@@ -21,6 +25,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,10 +34,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EventService {
   private final EventMapper mapper;
+  private final InventoryMapper inventoryMapper;
+  private final RedisPublishedEventCache publishedEventCache;
   private final Clock clock;
 
-  public EventService(EventMapper mapper, Clock clock) {
+  public EventService(
+      EventMapper mapper,
+      InventoryMapper inventoryMapper,
+      RedisPublishedEventCache publishedEventCache,
+      Clock clock) {
     this.mapper = mapper;
+    this.inventoryMapper = inventoryMapper;
+    this.publishedEventCache = publishedEventCache;
     this.clock = clock;
   }
 
@@ -45,21 +59,34 @@ public class EventService {
         keyword == null
             ? ""
             : keyword.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    var lookup = publishedEventCache.readList(escaped, page, size);
+    if (lookup.page() != null) {
+      return new PageResponse<>(lookup.page().items(), page, size, lookup.page().total());
+    }
     long total = mapper.countPublished(escaped);
     var items =
         mapper.listPublished(escaped, (long) page * size, size).stream()
             .map(this::summary)
             .toList();
+    Page cached = new Page(items, page, size, total);
+    publishedEventCache.writeList(lookup, cached, escaped, page, size);
     return new PageResponse<>(items, page, size, total);
   }
 
   @Transactional(readOnly = true)
   public EventResponse publishedDetail(long id) {
-    EventEntity event = mapper.findPublished(id);
-    if (event == null) {
-      throw missing();
+    var lookup = publishedEventCache.readDetail(id);
+    Detail cached = lookup.detail();
+    if (cached == null) {
+      EventEntity event = mapper.findPublished(id);
+      if (event == null) {
+        // Do not cache missing rows: a later successful publication must become visible at once.
+        throw missing();
+      }
+      cached = Detail.from(detail(event));
+      publishedEventCache.writeDetail(lookup, id, cached);
     }
-    return detail(event);
+    return withCurrentStock(cached);
   }
 
   @Transactional(readOnly = true)
@@ -171,7 +198,20 @@ public class EventService {
     if (mapper.publish(event.getId()) != 1) {
       throw conflict("Only drafts can be published");
     }
+    publishedEventCache.invalidateAfterCommit();
     return detail(mapper.findOwned(id, ownerId, admin));
+  }
+
+  private EventResponse withCurrentStock(Detail event) {
+    var skuIds = event.skuIds();
+    var stockBySku =
+        skuIds.isEmpty()
+            ? Map.<Long, Integer>of()
+            : inventoryMapper.listAvailableStock(skuIds).stream()
+                .collect(
+                    Collectors.toMap(
+                        InventoryMapper.SkuStock::id, InventoryMapper.SkuStock::availableStock));
+    return event.toResponse(stockBySku);
   }
 
   private EventEntity draft(long id, long ownerId, boolean admin) {

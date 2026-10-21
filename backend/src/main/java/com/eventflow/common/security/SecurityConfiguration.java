@@ -141,6 +141,7 @@ public class SecurityConfiguration {
                     .requestMatchers(
                         "/api/v1/orders",
                         "/api/v1/orders/**",
+                        "/api/v1/me/notifications",
                         "/api/v1/me/tickets",
                         "/api/v1/me/tickets/**")
                     .hasAnyRole("USER", "ADMIN")

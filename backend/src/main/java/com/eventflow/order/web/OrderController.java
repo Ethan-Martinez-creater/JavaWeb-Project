@@ -1,6 +1,7 @@
 package com.eventflow.order.web;
 
 import com.eventflow.common.web.PageResponse;
+import com.eventflow.order.application.OrderRequestRateLimiter;
 import com.eventflow.order.application.OrderService;
 import com.eventflow.order.web.OrderDtos.CreateOrder;
 import com.eventflow.order.web.OrderDtos.OrderView;
@@ -23,15 +24,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/orders")
 public class OrderController {
   private final OrderService service;
+  private final OrderRequestRateLimiter rateLimiter;
 
-  public OrderController(OrderService service) {
+  public OrderController(OrderService service, OrderRequestRateLimiter rateLimiter) {
     this.service = service;
+    this.rateLimiter = rateLimiter;
   }
 
   @PostMapping
   public ResponseEntity<OrderView> create(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateOrder input) {
-    var result = service.create(userId(jwt), input.skuId(), input.idempotencyKey());
+    long userId = userId(jwt);
+    rateLimiter.check(userId);
+    var result = service.create(userId, input.skuId(), input.idempotencyKey());
     return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
         .location(URI.create("/api/v1/orders/" + result.order().id()))
         .body(result.order());

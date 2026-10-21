@@ -53,6 +53,8 @@ sequenceDiagram
 
 发布器通过持久 lease 认领事件，网络发送在数据库事务之外；失效 lease 可再次认领。只有 confirm ack 且无 mandatory return 才能标 SENT。宕机发生在发布后、标记前时会重复发送，这是预期的至少一次语义。超时、nack、未路由和连接失败保留记录，采用有上限延迟的持久退避，长期故障恢复后仍能自动发布。日志只包含事件 ID、聚合 ID、异常分类，不打印 payload 或驱动参数。
 
+候选读取不锁范围，认领使用 `WHERE event_id=? AND (PENDING 已到期 OR CLAIMED lease 已过期)` 的原子 UPDATE；受影响一行才取得 owner。并发候选可相同，失败方返回空并在后续批次重查。最初 `FOR UPDATE SKIP LOCKED` 加 OR/排序扫描在默认 RR 下实测出现 secondary-index 死锁，因此改用主键条件认领，避免范围扫描锁与状态索引迁移交叉。标记成功/失败仍同时检查 CLAIMED 与 owner；瞬时认领异常结束本批、下次调度再试，不能假装已发布。
+
 ## 消费提交、重试与死信
 
 MQ 只传递事件 ID；消费者读取数据库 canonical Outbox，校验事件类型、聚合及必要 payload。通知在事务内插入唯一 `event_id`，消费去重表以 `(event_id,consumer_name)` 为主键。事务提交后才 ack，提交后 ack 丢失只会重投，不重复生成通知或释放库存。

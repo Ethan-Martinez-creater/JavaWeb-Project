@@ -132,7 +132,7 @@ V2 只能追加迁移，禁止修改已发布的 V1。主要关系如下：
 - 取消/过期关闭先取得锁：更新 CLOSED、释放库存并提交；支付方随后读到 CLOSED 返回 409，不会签票。
 - 两个事务任一失败则本地数据库写入回滚；无中间“订单已提交但库存/票据未完成”的状态。
 
-支付使用可信 `Clock` 判定 `expiresAt > now`。已过期支付返回 409，不在支付请求里顺带关单；扫描器负责可重试补偿。`OrderExpiryScanner.scanOnce()` 用 `(status,expires_at,id)` 索引最多选 100 个到期候选，对每个 ID 单独代理调用 `OrderService.closeExpired`，每单独立事务，避免 Spring `@Transactional` 自调用失效。默认调度间隔 30 秒，可用 `app.orders.expiry-scan-enabled=false` 禁用；单单失败记录 orderId 和异常类型，后续扫描重新查询持久化的待付记录。
+支付使用可信 `Clock` 判定 `expiresAt > now`。已过期支付返回 409，不在支付请求里顺带关单；扫描器负责可重试补偿。`OrderExpiryScanner.scanOnce()` 最多选 100 个到期且重试时间已到的候选，以 `(status,expiry_retry_at,expires_at,id)` 索引及重试时间优先排序，对每个 ID 单独代理调用 `OrderService.closeExpired`，每单独立事务，避免 Spring `@Transactional` 自调用失效。默认调度间隔 30 秒，可用 `app.orders.expiry-scan-enabled=false` 禁用；失败事务回滚后，由独立 `REQUIRES_NEW` 服务持久化指数退避，健康未尝试订单优先推进，异常日志仅含 orderId 与类型。调度池使用两个线程，使 MQ 发布等待不会占据 DB 扫描的唯一执行线程。
 
 ### 5.5 票据与核销码语义
 

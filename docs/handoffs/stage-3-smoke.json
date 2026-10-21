@@ -1,0 +1,13 @@
+{
+  "timestampUtc": "2026-10-21T11:25:13.2990974+00:00",
+  "profile": "dev",
+  "health": "UP",
+  "upgrade": "existing project V2 to V3",
+  "initialStock": 4,
+  "cachedReadStock": 4,
+  "afterOrderStock": 3,
+  "paidStatus": "PAID",
+  "notificationType": "ORDER_PAID",
+  "notificationRows": 1,
+  "credentialMaterialIncluded": false
+}

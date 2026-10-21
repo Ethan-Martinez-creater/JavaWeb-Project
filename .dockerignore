@@ -1,0 +1,10 @@
+# Build context is the repository root so the backend wrapper, frontend package, and Nginx config can be copied by their respective Dockerfiles.
+.git
+.worktrees
+.build-cache
+**/target
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/*.log

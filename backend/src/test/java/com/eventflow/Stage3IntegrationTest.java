@@ -3,8 +3,8 @@ package com.eventflow;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,9 +14,9 @@ import com.eventflow.event.application.PublishedEventCacheData.CachedSession;
 import com.eventflow.event.application.PublishedEventCacheData.CachedSku;
 import com.eventflow.event.application.PublishedEventCacheData.Detail;
 import com.eventflow.event.infrastructure.RedisPublishedEventCache;
-import com.eventflow.messaging.application.OutboxPublisher;
-import com.eventflow.messaging.application.OutboxClaimService;
 import com.eventflow.messaging.application.OrderExpiryMessageHandler;
+import com.eventflow.messaging.application.OutboxClaimService;
+import com.eventflow.messaging.application.OutboxPublisher;
 import com.eventflow.messaging.config.MessagingNames;
 import com.eventflow.messaging.domain.OutboxClaim;
 import com.eventflow.order.application.OrderExpiryScanner;
@@ -52,8 +52,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -86,6 +86,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.containers.wait.strategy.WaitAllStrategy;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -151,8 +152,7 @@ class Stage3IntegrationTest {
           MessagingNames.DEAD_LETTER_QUEUE);
   private static volatile String OBSERVED_MYSQL_VERSION = "unobserved";
 
-  @Container
-  private static final MySQLContainer<?> MYSQL = mysqlContainer("eventflow_stage3_test");
+  @Container private static final MySQLContainer<?> MYSQL = mysqlContainer("eventflow_stage3_test");
 
   @Container
   private static final GenericContainer<?> REDIS =
@@ -168,8 +168,9 @@ class Stage3IntegrationTest {
           .withEnv("RABBITMQ_DEFAULT_PASS", "eventflow_test")
           .withExposedPorts(5672)
           .waitingFor(
-              Wait.forAll(
-                  Wait.forListeningPort(), Wait.forLogMessage(".*Server startup complete.*", 1)))
+              new WaitAllStrategy()
+                  .withStrategy(Wait.forListeningPort())
+                  .withStrategy(Wait.forLogMessage(".*Server startup complete.*", 1)))
           .withStartupTimeout(Duration.ofSeconds(180));
 
   @DynamicPropertySource
@@ -259,22 +260,30 @@ class Stage3IntegrationTest {
   static void writeFaultEvidence() throws IOException {
     var artifact =
         Map.of(
-            "schema", "eventflow.stage3.fault-results.v1",
-            "mysqlImage", MYSQL_IMAGE,
-            "mysqlVersion", OBSERVED_MYSQL_VERSION,
-            "redisImage", REDIS_IMAGE,
-            "redisVersion", "8.4.7-alpine",
-            "rabbitImage", RABBIT_IMAGE,
-            "rabbitVersion", "4.3.6-management-alpine",
-            "credentialMaterialIncluded", false,
-            "throughputOrQpsClaimed", false,
-            "scenarios", List.copyOf(EVIDENCE));
+            "schema",
+            "eventflow.stage3.fault-results.v1",
+            "mysqlImage",
+            MYSQL_IMAGE,
+            "mysqlVersion",
+            OBSERVED_MYSQL_VERSION,
+            "redisImage",
+            REDIS_IMAGE,
+            "redisVersion",
+            "8.4.7-alpine",
+            "rabbitImage",
+            RABBIT_IMAGE,
+            "rabbitVersion",
+            "4.3.6-management-alpine",
+            "credentialMaterialIncluded",
+            false,
+            "throughputOrQpsClaimed",
+            false,
+            "scenarios",
+            List.copyOf(EVIDENCE));
     Path output = Path.of("target", "stage-3-fault-results.json");
     Files.createDirectories(output.getParent());
     Files.writeString(
-        output,
-        JSON.writeValueAsString(artifact) + System.lineSeparator(),
-        StandardCharsets.UTF_8);
+        output, JSON.writeValueAsString(artifact) + System.lineSeparator(), StandardCharsets.UTF_8);
   }
 
   @Test
@@ -283,7 +292,11 @@ class Stage3IntegrationTest {
     assertEquals(1L, versionCount("1"));
     assertEquals(1L, versionCount("2"));
     assertEquals(1L, versionCount("3"));
-    assertEquals(12L, jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('users','user_roles','events','event_sessions','ticket_skus','orders','order_items','tickets','checkin_records','outbox_events','consumed_events','user_notifications')", Long.class));
+    assertEquals(
+        12L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('users','user_roles','events','event_sessions','ticket_skus','orders','order_items','tickets','checkin_records','outbox_events','consumed_events','user_notifications')",
+            Long.class));
     assertEquals(1L, countIndex("outbox_events", "idx_outbox_due", false));
     assertEquals(1L, countIndex("outbox_events", "idx_outbox_lease", false));
     assertEquals(1L, countIndex("user_notifications", "uq_notifications_event", true));
@@ -306,7 +319,9 @@ class Stage3IntegrationTest {
       long sessionId;
       long skuId;
       long orderId;
-      String passwordHash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("stage3-migration-password-fixture");
+      String passwordHash =
+          new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
+              .encode("stage3-migration-password-fixture");
       String checkinHash = sha256Hex("migration-checkin-code-fixture");
       try (Connection connection =
           DriverManager.getConnection(
@@ -374,25 +389,56 @@ class Stage3IntegrationTest {
                   upgradeDb.getJdbcUrl(), upgradeDb.getUsername(), upgradeDb.getPassword());
           Statement statement = connection.createStatement()) {
         assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM users WHERE id=" + userId));
-        assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM user_roles WHERE user_id=" + userId + " AND role='ORGANIZER'"));
+        assertEquals(
+            1L,
+            queryLong(
+                statement,
+                "SELECT COUNT(*) FROM user_roles WHERE user_id="
+                    + userId
+                    + " AND role='ORGANIZER'"));
         assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM events WHERE id=" + eventId));
-        assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM event_sessions WHERE id=" + sessionId));
-        assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM ticket_skus WHERE id=" + skuId));
-        assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM orders WHERE id=" + orderId + " AND status='PAID'"));
-        assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM order_items WHERE order_id=" + orderId));
-        assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=" + orderId));
-        try (ResultSet result = statement.executeQuery("SELECT password_hash FROM users WHERE id=" + userId)) {
+        assertEquals(
+            1L, queryLong(statement, "SELECT COUNT(*) FROM event_sessions WHERE id=" + sessionId));
+        assertEquals(
+            1L, queryLong(statement, "SELECT COUNT(*) FROM ticket_skus WHERE id=" + skuId));
+        assertEquals(
+            1L,
+            queryLong(
+                statement,
+                "SELECT COUNT(*) FROM orders WHERE id=" + orderId + " AND status='PAID'"));
+        assertEquals(
+            1L, queryLong(statement, "SELECT COUNT(*) FROM order_items WHERE order_id=" + orderId));
+        assertEquals(
+            1L,
+            queryLong(
+                statement,
+                "SELECT COUNT(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id="
+                    + orderId));
+        try (ResultSet result =
+            statement.executeQuery("SELECT password_hash FROM users WHERE id=" + userId)) {
           assertTrue(result.next());
           assertEquals(passwordHash, result.getString(1));
         }
-        try (ResultSet result = statement.executeQuery("SELECT checkin_code_hash FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=" + orderId)) {
+        try (ResultSet result =
+            statement.executeQuery(
+                "SELECT checkin_code_hash FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id="
+                    + orderId)) {
           assertTrue(result.next());
           assertEquals(checkinHash, result.getString(1));
         }
-        assertEquals(500L, queryLong(statement, "SELECT price_cents FROM order_items WHERE order_id=" + orderId));
-        assertEquals(2L, queryLong(statement, "SELECT available_stock FROM ticket_skus WHERE id=" + skuId));
-        assertEquals(1L, queryLong(statement, "SELECT COUNT(*) FROM flyway_schema_history WHERE version='3' AND success=1"));
-        assertEquals(0L, queryLong(statement, "SELECT expiry_retry_attempts FROM orders WHERE id=" + orderId));
+        assertEquals(
+            500L,
+            queryLong(statement, "SELECT price_cents FROM order_items WHERE order_id=" + orderId));
+        assertEquals(
+            2L, queryLong(statement, "SELECT available_stock FROM ticket_skus WHERE id=" + skuId));
+        assertEquals(
+            1L,
+            queryLong(
+                statement,
+                "SELECT COUNT(*) FROM flyway_schema_history WHERE version='3' AND success=1"));
+        assertEquals(
+            0L,
+            queryLong(statement, "SELECT expiry_retry_attempts FROM orders WHERE id=" + orderId));
         assertEquals(0L, queryLong(statement, "SELECT COUNT(*) FROM outbox_events"));
       }
     }
@@ -401,7 +447,22 @@ class Stage3IntegrationTest {
             "scenario", "fresh-and-upgrade-migrations",
             "freshVersions", List.of(1, 2, 3),
             "upgradePath", "V1 seeded with user/event/session/SKU -> V2 order/item/ticket -> V3",
-            "preservedAggregateRows", Map.of("users", 1, "events", 1, "sessions", 1, "skus", 1, "paidOrders", 1, "items", 1, "tickets", 1),
+            "preservedAggregateRows",
+                Map.of(
+                    "users",
+                    1,
+                    "events",
+                    1,
+                    "sessions",
+                    1,
+                    "skus",
+                    1,
+                    "paidOrders",
+                    1,
+                    "items",
+                    1,
+                    "tickets",
+                    1),
             "result", "passed"));
   }
 
@@ -428,9 +489,7 @@ class Stage3IntegrationTest {
     long ttl = redis.getExpire(detailKeys.iterator().next(), TimeUnit.MILLISECONDS);
     long cacheReadElapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - cacheReadStartedAt);
     assertTrue(
-        ttl > 0
-            && ttl + cacheReadElapsedMs >= 300_000
-            && ttl + cacheReadElapsedMs <= 315_000,
+        ttl > 0 && ttl + cacheReadElapsedMs >= 300_000 && ttl + cacheReadElapsedMs <= 315_000,
         "detail TTL includes the configured jitter after accounting for test time");
 
     HttpResponse<String> order = createOrder(user, fixture.skuId(), "cache-stock-key-001");
@@ -465,7 +524,11 @@ class Stage3IntegrationTest {
     HttpResponse<String> beforePublish = call("GET", "/api/v1/events?page=0&size=100", null, null);
     assertFalse(containsEvent(json(beforePublish), draft.eventId()));
     HttpResponse<String> published =
-        call("POST", "/api/v1/organizer/events/" + draft.eventId() + "/publish", organizer.token(), null);
+        call(
+            "POST",
+            "/api/v1/organizer/events/" + draft.eventId() + "/publish",
+            organizer.token(),
+            null);
     assertStatus(200, published);
     assertEquals(invalidationsBeforeRollback + 1, cacheMetrics.snapshot().invalidations());
     HttpResponse<String> afterPublish = call("GET", "/api/v1/events?page=0&size=100", null, null);
@@ -503,8 +566,7 @@ class Stage3IntegrationTest {
                     fixture.endsAt(),
                     "Main Hall",
                     List.of(
-                        new CachedSku(
-                            fixture.skuId(), fixture.sessionId(), "General", 800, 10)))));
+                        new CachedSku(fixture.skuId(), fixture.sessionId(), "General", 800, 10)))));
     publishedEventCache.writeDetail(staleLookup, fixture.eventId(), staleDetail);
     assertFalse(Boolean.TRUE.equals(redis.hasKey(staleDetailKey)));
     assertTrue(
@@ -521,15 +583,24 @@ class Stage3IntegrationTest {
     assertTrue(redis.keys("eventflow:events:g:*:detail:" + missingId).isEmpty());
     EVIDENCE.add(
         Map.of(
-            "scenario", "cache-aside-and-after-commit-invalidation",
-            "firstRead", "mysql-miss",
-            "secondRead", "redis-hit",
-            "cachedStockField", false,
-            "liveStockAfterReservation", 9,
-            "rollbackInvalidation", false,
-            "committedPublicationInvalidated", true,
-            "negativeDetailCached", false,
-            "result", "passed"));
+            "scenario",
+            "cache-aside-and-after-commit-invalidation",
+            "firstRead",
+            "mysql-miss",
+            "secondRead",
+            "redis-hit",
+            "cachedStockField",
+            false,
+            "liveStockAfterReservation",
+            9,
+            "rollbackInvalidation",
+            false,
+            "committedPublicationInvalidated",
+            true,
+            "negativeDetailCached",
+            false,
+            "result",
+            "passed"));
   }
 
   @Test
@@ -541,10 +612,14 @@ class Stage3IntegrationTest {
 
     String userQuotaKey = "eventflow:rate:orders:user:" + user.id();
     redis.opsForValue().set(userQuotaKey, "3", Duration.ofSeconds(30));
-    HttpResponse<String> limitedBeforePause = createOrder(user, fixture.skuId(), "redis-limit-before-pause");
+    HttpResponse<String> limitedBeforePause =
+        createOrder(user, fixture.skuId(), "redis-limit-before-pause");
     assertStatus(429, limitedBeforePause);
     assertEquals("RATE_LIMIT_EXCEEDED", errorCode(limitedBeforePause));
-    assertEquals(20, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    assertEquals(
+        20,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
 
     String pause = REDIS.execInContainer("redis-cli", "CLIENT", "PAUSE", "2200", "ALL").getStdout();
     assertTrue(pause.contains("OK"));
@@ -557,8 +632,10 @@ class Stage3IntegrationTest {
     assertTrue(cacheMetrics.snapshot().redisFailures() > 0);
 
     await("Redis resumes after CLIENT PAUSE", Duration.ofSeconds(8), this::redisPing);
-    HttpResponse<String> recoveredFirst = call("GET", "/api/v1/events/" + fixture.eventId(), null, null);
-    HttpResponse<String> recoveredSecond = call("GET", "/api/v1/events/" + fixture.eventId(), null, null);
+    HttpResponse<String> recoveredFirst =
+        call("GET", "/api/v1/events/" + fixture.eventId(), null, null);
+    HttpResponse<String> recoveredSecond =
+        call("GET", "/api/v1/events/" + fixture.eventId(), null, null);
     assertStatus(200, recoveredFirst);
     assertStatus(200, recoveredSecond);
     assertEquals(19, skuStock(json(recoveredSecond)));
@@ -581,7 +658,10 @@ class Stage3IntegrationTest {
     long ttl = redis.getExpire(key, TimeUnit.MILLISECONDS);
     assertTrue(ttl > 0 && ttl <= 5000);
     assertStatus(201, createOrder(admin, fixture.skuId(), "other-user-rate-001"));
-    await("per-user rate window expires", Duration.ofSeconds(8), () -> redis.getExpire(key, TimeUnit.MILLISECONDS) < 0);
+    await(
+        "per-user rate window expires",
+        Duration.ofSeconds(8),
+        () -> redis.getExpire(key, TimeUnit.MILLISECONDS) < 0);
     assertStatus(201, createOrder(secondUser, fixture.skuId(), "limit-window-after-expiry"));
     assertEquals(
         1L,
@@ -593,16 +673,26 @@ class Stage3IntegrationTest {
         "the independent user still created exactly one order");
     EVIDENCE.add(
         Map.of(
-            "scenario", "redis-outage-fail-open-recovery-and-rate-limit",
-            "injectedFault", "CLIENT PAUSE 2200 ALL on real Redis",
-            "catalogFallbackStatus", fallbackDetail.statusCode(),
-            "orderDuringRedisFaultStatus", failOpenOrder.statusCode(),
-            "sameUserLimitBeforeFaultStatus", limitedBeforePause.statusCode(),
-            "sameUserConcurrentRequests", limited.size(),
-            "sameUserRejected429", rejected.size(),
-            "otherUserUnaffected", true,
-            "ttlWindowRecovered", true,
-            "result", "passed"));
+            "scenario",
+            "redis-outage-fail-open-recovery-and-rate-limit",
+            "injectedFault",
+            "CLIENT PAUSE 2200 ALL on real Redis",
+            "catalogFallbackStatus",
+            fallbackDetail.statusCode(),
+            "orderDuringRedisFaultStatus",
+            failOpenOrder.statusCode(),
+            "sameUserLimitBeforeFaultStatus",
+            limitedBeforePause.statusCode(),
+            "sameUserConcurrentRequests",
+            limited.size(),
+            "sameUserRejected429",
+            rejected.size(),
+            "otherUserUnaffected",
+            true,
+            "ttlWindowRecovered",
+            true,
+            "result",
+            "passed"));
   }
 
   @Test
@@ -623,7 +713,9 @@ class Stage3IntegrationTest {
       assertEquals(
           5,
           jdbc.queryForObject(
-              "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+              "SELECT available_stock FROM ticket_skus WHERE id=?",
+              Integer.class,
+              fixture.skuId()));
     } finally {
       jdbc.execute("DROP TRIGGER IF EXISTS " + OUTBOX_TRIGGER);
     }
@@ -636,7 +728,8 @@ class Stage3IntegrationTest {
                 status -> {
                   var created = orders.create(user.id(), fixture.skuId(), "outbox-tx-rollback-1");
                   assertTrue(created.created());
-                  assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events", Long.class));
+                  assertEquals(
+                      1L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events", Long.class));
                   assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Long.class));
                   throw new RollbackMarker();
                 }));
@@ -672,12 +765,91 @@ class Stage3IntegrationTest {
     }
     EVIDENCE.add(
         Map.of(
-            "scenario", "outbox-transaction-and-mandatory-return",
-            "triggeredOutboxInsertFailureRolledBackOrderAndStock", true,
-            "outerTransactionRollbackRemovedOutboxOrderItemAndReservation", true,
-            "unroutableEventStatus", outboxStatus(eventId),
-            "unroutableReason", "UNROUTABLE",
-            "result", "passed"));
+            "scenario",
+            "outbox-transaction-and-mandatory-return",
+            "triggeredOutboxInsertFailureRolledBackOrderAndStock",
+            true,
+            "outerTransactionRollbackRemovedOutboxOrderItemAndReservation",
+            true,
+            "unroutableEventStatus",
+            outboxStatus(eventId),
+            "unroutableReason",
+            "UNROUTABLE",
+            "result",
+            "passed"));
+  }
+
+  @Test
+  void paidAndClosedOutboxFailuresRollbackTicketsAndStockAndReplaysCreateNoEvents()
+      throws Exception {
+    Fixture fixture = publishedFixture("Terminal Outbox rollback", 2, 600);
+    long paidId = orders.create(user.id(), fixture.skuId(), "atomic-pay-key-001").order().id();
+    long closedId =
+        orders.create(secondUser.id(), fixture.skuId(), "atomic-close-key-1").order().id();
+    jdbc.execute(
+        "CREATE TRIGGER "
+            + OUTBOX_TRIGGER
+            + " BEFORE INSERT ON outbox_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected outbox failure'");
+    try {
+      assertStatus(500, call("POST", "/api/v1/orders/" + paidId + "/pay", user.token(), null));
+      assertStatus(
+          500, call("POST", "/api/v1/orders/" + closedId + "/cancel", secondUser.token(), null));
+      assertEquals(
+          2L,
+          jdbc.queryForObject(
+              "SELECT COUNT(*) FROM orders WHERE status='PENDING_PAYMENT'", Long.class));
+      assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets", Long.class));
+      assertEquals(2L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events", Long.class));
+      assertEquals(
+          0,
+          jdbc.queryForObject(
+              "SELECT available_stock FROM ticket_skus WHERE id=?",
+              Integer.class,
+              fixture.skuId()));
+    } finally {
+      jdbc.execute("DROP TRIGGER IF EXISTS " + OUTBOX_TRIGGER);
+    }
+    assertStatus(200, call("POST", "/api/v1/orders/" + paidId + "/pay", user.token(), null));
+    assertStatus(200, call("POST", "/api/v1/orders/" + paidId + "/pay", user.token(), null));
+    assertStatus(
+        200, call("POST", "/api/v1/orders/" + closedId + "/cancel", secondUser.token(), null));
+    assertStatus(
+        200, call("POST", "/api/v1/orders/" + closedId + "/cancel", secondUser.token(), null));
+    assertFalse(orders.create(user.id(), fixture.skuId(), "atomic-pay-key-001").created());
+    assertFalse(orders.create(secondUser.id(), fixture.skuId(), "atomic-close-key-1").created());
+    assertEquals(
+        2L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE event_type='ORDER_CREATED'", Long.class));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE event_type='ORDER_PAID'", Long.class));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE event_type='ORDER_CLOSED'", Long.class));
+    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets", Long.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+    EVIDENCE.add(
+        Map.of(
+            "scenario",
+            "terminal-outbox-rollback-and-idempotent-transitions",
+            "paidInsertFailure",
+            "rolled back status and ticket",
+            "closedInsertFailure",
+            "rolled back status and inventory release",
+            "eventCountsAfterReplays",
+            Map.of("ORDER_CREATED", 2, "ORDER_PAID", 1, "ORDER_CLOSED", 1),
+            "finalTicketCount",
+            1,
+            "finalAvailableStock",
+            1,
+            "result",
+            "passed"));
   }
 
   @Test
@@ -695,10 +867,14 @@ class Stage3IntegrationTest {
       assertNotEquals("SENT", outboxStatus(eventId));
       EVIDENCE.add(
           Map.of(
-              "scenario", "business-order-during-rabbit-outage",
-              "createHttpStatus", created.statusCode(),
-              "outboxStatusWhileRabbitStopped", outboxStatus(eventId),
-              "result", "passed"));
+              "scenario",
+              "business-order-during-rabbit-outage",
+              "createHttpStatus",
+              created.statusCode(),
+              "outboxStatusWhileRabbitStopped",
+              outboxStatus(eventId),
+              "result",
+              "passed"));
     } finally {
       rabbitStartApp();
     }
@@ -708,7 +884,8 @@ class Stage3IntegrationTest {
             LocalDateTime.class,
             eventId);
     clock.set(nextAttempt.toInstant(ZoneOffset.UTC).plusMillis(10));
-    await("RabbitMQ accepts AMQP after restart", Duration.ofSeconds(20), this::rabbitAmqpResponding);
+    await(
+        "RabbitMQ accepts AMQP after restart", Duration.ofSeconds(20), this::rabbitAmqpResponding);
     assertEquals(1, outboxPublisher.publishBatchOnce());
     assertEquals("SENT", outboxStatus(eventId));
     assertTrue(queueDepth(MessagingNames.ORDER_EXPIRY_DELAY_QUEUE) >= 1);
@@ -732,7 +909,9 @@ class Stage3IntegrationTest {
         () ->
             rabbit.execute(
                 channel -> {
-                  assertTrue(channel.isOpen(), "the publisher channel is connected before fault injection");
+                  assertTrue(
+                      channel.isOpen(),
+                      "the publisher channel is connected before fault injection");
                   return null;
                 }));
     String rabbitId = RABBIT.getContainerId();
@@ -747,7 +926,10 @@ class Stage3IntegrationTest {
     } finally {
       RABBIT.getDockerClient().unpauseContainerCmd(rabbitId).exec();
     }
-    await("RabbitMQ resumes after a paused-container confirm timeout", Duration.ofSeconds(20), this::rabbitAmqpResponding);
+    await(
+        "RabbitMQ resumes after a paused-container confirm timeout",
+        Duration.ofSeconds(20),
+        this::rabbitAmqpResponding);
     assertNotEquals("SENT", outboxStatus(eventId));
     EVIDENCE.add(
         Map.of(
@@ -764,7 +946,8 @@ class Stage3IntegrationTest {
     Fixture fixture = publishedFixture("Notification flow", 4, 500);
     HttpResponse<String> created = createOrder(user, fixture.skuId(), "notification-paid-01");
     long orderId = json(created).path("id").asLong();
-    HttpResponse<String> paid = call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
+    HttpResponse<String> paid =
+        call("POST", "/api/v1/orders/" + orderId + "/pay", user.token(), null);
     assertStatus(200, paid);
     String eventId = outboxEventId("ORDER_PAID");
     assertTrue(outboxPublisher.publishBatchOnce() >= 1);
@@ -780,12 +963,17 @@ class Stage3IntegrationTest {
         "duplicate paid message is durably queued while its consumer is stopped",
         Duration.ofSeconds(5),
         () -> queueDepth(MessagingNames.NOTIFICATION_QUEUE) == 1);
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM user_notifications WHERE event_id=?", Long.class, eventId));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM user_notifications WHERE event_id=?", Long.class, eventId));
 
     Fixture secondFixture = publishedFixture("Listener restart", 2, 300);
-    HttpResponse<String> secondOrder = createOrder(secondUser, secondFixture.skuId(), "notify-restart-01");
+    HttpResponse<String> secondOrder =
+        createOrder(secondUser, secondFixture.skuId(), "notify-restart-01");
     long secondOrderId = json(secondOrder).path("id").asLong();
-    assertStatus(200, call("POST", "/api/v1/orders/" + secondOrderId + "/pay", secondUser.token(), null));
+    assertStatus(
+        200, call("POST", "/api/v1/orders/" + secondOrderId + "/pay", secondUser.token(), null));
     String secondEventId = outboxEventIdForOrder("ORDER_PAID", secondOrderId);
     rabbit.convertAndSend(MessagingNames.EXCHANGE, MessagingNames.ORDER_PAID_ROUTE, secondEventId);
     await(
@@ -811,7 +999,8 @@ class Stage3IntegrationTest {
         call("GET", "/api/v1/me/notifications?page=0&size=20", admin.token(), null);
     HttpResponse<String> organizerDenied =
         call("GET", "/api/v1/me/notifications?page=0&size=20", organizer.token(), null);
-    HttpResponse<String> anonymous = call("GET", "/api/v1/me/notifications?page=0&size=20", null, null);
+    HttpResponse<String> anonymous =
+        call("GET", "/api/v1/me/notifications?page=0&size=20", null, null);
     assertStatus(200, own);
     assertStatus(200, other);
     assertStatus(200, adminOwn);
@@ -825,18 +1014,28 @@ class Stage3IntegrationTest {
     assertApiError(anonymous);
     EVIDENCE.add(
         Map.of(
-            "scenario", "notification-outbox-idempotency-owner-scope-and-restart",
-            "duplicateDeliveryNotificationRows", 1,
-            "listenerStoppedMessageRetained", true,
-            "listenerRestartDelivered", true,
-            "otherUserOnlyOwnNotifications", true,
-            "result", "passed"));
+            "scenario",
+            "notification-outbox-idempotency-owner-scope-and-restart",
+            "duplicateDeliveryNotificationRows",
+            1,
+            "listenerStoppedMessageRetained",
+            true,
+            "listenerRestartDelivered",
+            true,
+            "otherUserOnlyOwnNotifications",
+            true,
+            "result",
+            "passed"));
   }
 
   @Test
   void poisonAndFailedNotificationTransactionsReachDeadLetterAndCanBeRedriven() throws Exception {
-    rabbit.convertAndSend(MessagingNames.EXCHANGE, MessagingNames.ORDER_PAID_ROUTE, "not-a-valid-event-id");
-    await("malformed message reaches durable DLQ", Duration.ofSeconds(10), () -> queueDepth(MessagingNames.DEAD_LETTER_QUEUE) == 1);
+    rabbit.convertAndSend(
+        MessagingNames.EXCHANGE, MessagingNames.ORDER_PAID_ROUTE, "not-a-valid-event-id");
+    await(
+        "malformed message reaches durable DLQ",
+        Duration.ofSeconds(10),
+        () -> queueDepth(MessagingNames.DEAD_LETTER_QUEUE) == 1);
     Message poison = rabbit.receive(MessagingNames.DEAD_LETTER_QUEUE, 1000);
     assertNotNull(poison);
     assertEquals("INVALID_EVENT_ID", new String(poison.getBody(), StandardCharsets.UTF_8));
@@ -863,7 +1062,10 @@ class Stage3IntegrationTest {
           "failed notification transaction reaches DLQ after bounded retries",
           Duration.ofSeconds(15),
           () -> queueDepth(MessagingNames.DEAD_LETTER_QUEUE) >= 1);
-      assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM user_notifications WHERE event_id=?", Long.class, eventId));
+      assertEquals(
+          0L,
+          jdbc.queryForObject(
+              "SELECT COUNT(*) FROM user_notifications WHERE event_id=?", Long.class, eventId));
       assertEquals(0L, consumedEventCount(eventId));
       Message failedDelivery = rabbit.receive(MessagingNames.DEAD_LETTER_QUEUE, 1000);
       assertNotNull(failedDelivery);
@@ -881,7 +1083,10 @@ class Stage3IntegrationTest {
       jdbc.execute("DROP TRIGGER IF EXISTS " + NOTIFICATION_TRIGGER);
     }
     rabbit.convertAndSend(MessagingNames.EXCHANGE, MessagingNames.ORDER_PAID_ROUTE, eventId);
-    await("redriven notification persists once", Duration.ofSeconds(10), () -> notificationCount(user.id()) == 1);
+    await(
+        "redriven notification persists once",
+        Duration.ofSeconds(10),
+        () -> notificationCount(user.id()) == 1);
     assertEquals(1L, consumedEventCount(eventId));
     EVIDENCE.add(
         Map.of(
@@ -897,13 +1102,9 @@ class Stage3IntegrationTest {
   void rabbitExpiryPathHandlesEarlyDueLateDuplicateOutOfOrderAndStateRaces() throws Exception {
     Instant now = clock.instant();
     Fixture earlyFixture =
-        publishedFixtureAt(
-            "Early TTL expiry",
-            now.plusSeconds(6),
-            now.plusSeconds(90),
-            3,
-            600);
-    HttpResponse<String> earlyOrder = createOrder(user, earlyFixture.skuId(), "early-rabbit-order-1");
+        publishedFixtureAt("Early TTL expiry", now.plusSeconds(6), now.plusSeconds(90), 3, 600);
+    HttpResponse<String> earlyOrder =
+        createOrder(user, earlyFixture.skuId(), "early-rabbit-order-1");
     assertStatus(201, earlyOrder);
     long earlyId = json(earlyOrder).path("id").asLong();
     Instant earlyExpiry = Instant.parse(json(earlyOrder).path("expiresAt").asText());
@@ -918,7 +1119,8 @@ class Stage3IntegrationTest {
     assertEquals(
         "PENDING_PAYMENT",
         jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, earlyId));
-    assertEquals(0L, consumedEventCount(earlyEventId), "early events remain eligible for redelivery");
+    assertEquals(
+        0L, consumedEventCount(earlyEventId), "early events remain eligible for redelivery");
     assertEquals(
         2,
         jdbc.queryForObject(
@@ -930,9 +1132,18 @@ class Stage3IntegrationTest {
     await(
         "the real Rabbit TTL/DLX route closes the order at its database expiry",
         Duration.ofSeconds(20),
-        () -> "CLOSED".equals(jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, earlyId)));
+        () ->
+            "CLOSED"
+                .equals(
+                    jdbc.queryForObject(
+                        "SELECT status FROM orders WHERE id=?", String.class, earlyId)));
     assertEquals(1L, consumedEventCount(earlyEventId));
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'", Long.class, earlyId));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'",
+            Long.class,
+            earlyId));
     assertEquals(
         3,
         jdbc.queryForObject(
@@ -950,11 +1161,22 @@ class Stage3IntegrationTest {
         "duplicate expiry message is durably queued while its consumer is stopped",
         Duration.ofSeconds(5),
         () -> queueDepth(MessagingNames.ORDER_EXPIRY_QUEUE) == 1);
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'", Long.class, earlyId));
-    assertEquals(3, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, earlyFixture.skuId()));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'",
+            Long.class,
+            earlyId));
+    assertEquals(
+        3,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?",
+            Integer.class,
+            earlyFixture.skuId()));
 
     Fixture paidFixture = publishedFixture("Expiry after payment", 2, 450);
-    HttpResponse<String> paidOrder = createOrder(secondUser, paidFixture.skuId(), "out-of-order-paid-1");
+    HttpResponse<String> paidOrder =
+        createOrder(secondUser, paidFixture.skuId(), "out-of-order-paid-1");
     long paidId = json(paidOrder).path("id").asLong();
     assertStatus(200, call("POST", "/api/v1/orders/" + paidId + "/pay", secondUser.token(), null));
     Instant paidExpiry = Instant.parse(json(paidOrder).path("expiresAt").asText());
@@ -973,9 +1195,20 @@ class Stage3IntegrationTest {
         () ->
             queueDepth(MessagingNames.ORDER_EXPIRY_QUEUE) == 0
                 && consumedEventCount(paidCreatedEvent) == 1);
-    assertEquals("PAID", jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, paidId));
-    assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'", Long.class, paidId));
-    assertEquals(1, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, paidFixture.skuId()));
+    assertEquals(
+        "PAID", jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, paidId));
+    assertEquals(
+        0L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'",
+            Long.class,
+            paidId));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?",
+            Integer.class,
+            paidFixture.skuId()));
 
     Fixture lateFixture =
         publishedFixtureAt(
@@ -991,13 +1224,31 @@ class Stage3IntegrationTest {
     clock.set(lateExpiry.plusSeconds(1));
     assertTrue(outboxPublisher.publishBatchOnce() >= 1);
     assertEquals("SENT", outboxStatus(lateEventId));
-    await("late Rabbit delivery closes expired reservation", Duration.ofSeconds(10), () -> "CLOSED".equals(jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, lateId)));
+    await(
+        "late Rabbit delivery closes expired reservation",
+        Duration.ofSeconds(10),
+        () ->
+            "CLOSED"
+                .equals(
+                    jdbc.queryForObject(
+                        "SELECT status FROM orders WHERE id=?", String.class, lateId)));
     assertEquals(1L, consumedEventCount(lateEventId));
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'", Long.class, lateId));
-    assertEquals(1, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, lateFixture.skuId()));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'",
+            Long.class,
+            lateId));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?",
+            Integer.class,
+            lateFixture.skuId()));
 
     Fixture cancelRaceFixture = publishedFixture("Rabbit cancel race", 1, 500);
-    HttpResponse<String> cancelPending = createOrder(user, cancelRaceFixture.skuId(), "rabbit-cancel-race1");
+    HttpResponse<String> cancelPending =
+        createOrder(user, cancelRaceFixture.skuId(), "rabbit-cancel-race1");
     long cancelId = json(cancelPending).path("id").asLong();
     String cancelEventId = outboxEventIdForOrder("ORDER_CREATED", cancelId);
     clock.set(Instant.parse(json(cancelPending).path("expiresAt").asText()));
@@ -1015,12 +1266,30 @@ class Stage3IntegrationTest {
                   .statusCode();
             });
     assertTrue(raceResults.contains(200));
-    await("Rabbit expiry and HTTP cancellation settle to CLOSED", Duration.ofSeconds(10), () -> "CLOSED".equals(jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, cancelId)));
-    assertEquals(1, jdbc.queryForObject("SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, cancelRaceFixture.skuId()));
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'", Long.class, cancelId));
+    await(
+        "Rabbit expiry and HTTP cancellation settle to CLOSED",
+        Duration.ofSeconds(10),
+        () ->
+            "CLOSED"
+                .equals(
+                    jdbc.queryForObject(
+                        "SELECT status FROM orders WHERE id=?", String.class, cancelId)));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT available_stock FROM ticket_skus WHERE id=?",
+            Integer.class,
+            cancelRaceFixture.skuId()));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'",
+            Long.class,
+            cancelId));
 
     Fixture payRaceFixture = publishedFixture("Rabbit pay race", 1, 500);
-    HttpResponse<String> payPending = createOrder(secondUser, payRaceFixture.skuId(), "rabbit-pay-race-001");
+    HttpResponse<String> payPending =
+        createOrder(secondUser, payRaceFixture.skuId(), "rabbit-pay-race-001");
     long payId = json(payPending).path("id").asLong();
     String payEventId = outboxEventIdForOrder("ORDER_CREATED", payId);
     List<Integer> payResults =
@@ -1037,9 +1306,20 @@ class Stage3IntegrationTest {
                   .statusCode();
             });
     assertTrue(payResults.contains(200));
-    assertEquals("PAID", jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, payId));
-    assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?", Long.class, payId));
-    assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'", Long.class, payId));
+    assertEquals(
+        "PAID", jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, payId));
+    assertEquals(
+        1L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?",
+            Long.class,
+            payId));
+    assertEquals(
+        0L,
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=? AND event_type='ORDER_CLOSED'",
+            Long.class,
+            payId));
     EVIDENCE.add(
         Map.of(
             "scenario", "rabbit-early-due-late-duplicate-out-of-order-and-races",
@@ -1059,7 +1339,8 @@ class Stage3IntegrationTest {
     Fixture fixture = publishedFixture("Scanner fairness", 101, 100);
     List<Long> orderIds = new ArrayList<>(101);
     for (int index = 0; index < 101; index++) {
-      var result = orders.create(user.id(), fixture.skuId(), String.format("scan-poison-%05d", index));
+      var result =
+          orders.create(user.id(), fixture.skuId(), String.format("scan-poison-%05d", index));
       assertTrue(result.created());
       orderIds.add(result.order().id());
     }
@@ -1068,14 +1349,15 @@ class Stage3IntegrationTest {
         orderIds.subList(0, 100).stream().map(id -> new Object[] {id}).toList());
     Instant expiresAt =
         jdbc.queryForObject(
-            "SELECT expires_at FROM orders WHERE id=?",
-            LocalDateTime.class,
-            orderIds.get(0))
+                "SELECT expires_at FROM orders WHERE id=?", LocalDateTime.class, orderIds.get(0))
             .toInstant(ZoneOffset.UTC);
     clock.set(expiresAt);
     rabbitStopApp();
     try {
-      assertEquals(0, expiryScanner.scanOnce(), "the first full batch contains only malformed poisoned orders");
+      assertEquals(
+          0,
+          expiryScanner.scanOnce(),
+          "the first full batch contains only malformed poisoned orders");
       assertEquals(
           100L,
           jdbc.queryForObject(
@@ -1084,32 +1366,46 @@ class Stage3IntegrationTest {
       assertEquals(
           0,
           jdbc.queryForObject(
-              "SELECT expiry_retry_attempts FROM orders WHERE id=?", Integer.class, orderIds.get(100)));
+              "SELECT expiry_retry_attempts FROM orders WHERE id=?",
+              Integer.class,
+              orderIds.get(100)));
       LocalDateTime retryAt =
           jdbc.queryForObject(
-              "SELECT expiry_retry_at FROM orders WHERE id=?", LocalDateTime.class, orderIds.get(0));
+              "SELECT expiry_retry_at FROM orders WHERE id=?",
+              LocalDateTime.class,
+              orderIds.get(0));
       assertTrue(retryAt.isAfter(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)));
 
-      assertEquals(1, expiryScanner.scanOnce(), "the healthy 101st order must not be starved by poison rows");
+      assertEquals(
+          1,
+          expiryScanner.scanOnce(),
+          "the healthy 101st order must not be starved by poison rows");
       assertEquals(
           "CLOSED",
-          jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, orderIds.get(100)));
+          jdbc.queryForObject(
+              "SELECT status FROM orders WHERE id=?", String.class, orderIds.get(100)));
       assertEquals(
           1,
           jdbc.queryForObject(
-              "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+              "SELECT available_stock FROM ticket_skus WHERE id=?",
+              Integer.class,
+              fixture.skuId()));
       assertEquals(0, expiryScanner.scanOnce());
       assertEquals(
           1,
           jdbc.queryForObject(
-              "SELECT expiry_retry_attempts FROM orders WHERE id=?", Integer.class, orderIds.get(0)));
+              "SELECT expiry_retry_attempts FROM orders WHERE id=?",
+              Integer.class,
+              orderIds.get(0)));
 
       clock.set(retryAt.toInstant(ZoneOffset.UTC));
       assertEquals(0, expiryScanner.scanOnce());
       assertEquals(
           2,
           jdbc.queryForObject(
-              "SELECT expiry_retry_attempts FROM orders WHERE id=?", Integer.class, orderIds.get(0)));
+              "SELECT expiry_retry_attempts FROM orders WHERE id=?",
+              Integer.class,
+              orderIds.get(0)));
       assertTrue(
           jdbc.queryForObject(
                   "SELECT COUNT(*) FROM orders WHERE status='PENDING_PAYMENT' AND expiry_retry_attempts=2",
@@ -1118,20 +1414,30 @@ class Stage3IntegrationTest {
       assertEquals(
           1,
           jdbc.queryForObject(
-              "SELECT available_stock FROM ticket_skus WHERE id=?", Integer.class, fixture.skuId()));
+              "SELECT available_stock FROM ticket_skus WHERE id=?",
+              Integer.class,
+              fixture.skuId()));
     } finally {
       rabbitStartApp();
     }
     EVIDENCE.add(
         Map.of(
-            "scenario", "mysql-scanner-101-order-poison-starvation-and-backoff",
-            "rabbitApplication", "stopped during scan",
-            "poisonRowsInInitialBatch", 100,
-            "healthy101stClosedOnNextScan", true,
-            "poisonAttemptsBeforeBackoff", 1,
-            "poisonAttemptsAfterDueRetry", 2,
-            "stockReleasedByHealthyOrder", 1,
-            "result", "passed"));
+            "scenario",
+            "mysql-scanner-101-order-poison-starvation-and-backoff",
+            "rabbitApplication",
+            "stopped during scan",
+            "poisonRowsInInitialBatch",
+            100,
+            "healthy101stClosedOnNextScan",
+            true,
+            "poisonAttemptsBeforeBackoff",
+            1,
+            "poisonAttemptsAfterDueRetry",
+            2,
+            "stockReleasedByHealthyOrder",
+            1,
+            "result",
+            "passed"));
   }
 
   @Test
@@ -1166,7 +1472,8 @@ class Stage3IntegrationTest {
     assertNotNull(recoveredOwner, "an expired CLAIMED lease must be reclaimable");
     assertEquals(eventId, recoveredOwner.eventId());
     assertNotEquals(staleOwner.leaseOwner(), recoveredOwner.leaseOwner());
-    assertFalse(outboxClaims.markSent(staleOwner), "the previous owner cannot mark a reclaimed event sent");
+    assertFalse(
+        outboxClaims.markSent(staleOwner), "the previous owner cannot mark a reclaimed event sent");
     assertFalse(
         outboxClaims.markFailure(staleOwner, "STALE_OWNER"),
         "the previous owner cannot mutate the replacement lease");
@@ -1197,9 +1504,7 @@ class Stage3IntegrationTest {
     parallelOrderIds.add(json(secondParallelOrder).path("id").asLong());
     parallelOrderIds.add(json(thirdParallelOrder).path("id").asLong());
     List<String> parallelEventIds =
-        parallelOrderIds.stream()
-            .map(id -> outboxEventIdForOrder("ORDER_CREATED", id))
-            .toList();
+        parallelOrderIds.stream().map(id -> outboxEventIdForOrder("ORDER_CREATED", id)).toList();
     List<Integer> publishedCounts =
         parallelCallables(2, 2, ignored -> outboxPublisher.publishBatchOnce());
     assertEquals(3, publishedCounts.stream().mapToInt(Integer::intValue).sum());
@@ -1209,15 +1514,24 @@ class Stage3IntegrationTest {
     }
     EVIDENCE.add(
         Map.of(
-            "scenario", "outbox-concurrent-claims-lease-expiry-and-parallel-publishers",
-            "simultaneousClaimers", claimResults.size(),
-            "oneInitialLeaseOwner", true,
-            "expiredLeaseReclaimed", true,
-            "staleOwnerMutationsRejected", true,
-            "recoveredEventPublished", outboxStatus(eventId),
-            "parallelPublishers", 2,
-            "parallelEventsSentOnce", parallelEventIds.size(),
-            "result", "passed"));
+            "scenario",
+            "outbox-concurrent-claims-lease-expiry-and-parallel-publishers",
+            "simultaneousClaimers",
+            claimResults.size(),
+            "oneInitialLeaseOwner",
+            true,
+            "expiredLeaseReclaimed",
+            true,
+            "staleOwnerMutationsRejected",
+            true,
+            "recoveredEventPublished",
+            outboxStatus(eventId),
+            "parallelPublishers",
+            2,
+            "parallelEventsSentOnce",
+            parallelEventIds.size(),
+            "result",
+            "passed"));
   }
 
   private void verifyFreshV1V2V3SchemaAndNoSeedUsers() {
@@ -1550,7 +1864,7 @@ class Stage3IntegrationTest {
         "SELECT COUNT(*) FROM consumed_events WHERE event_id=?", Long.class, eventId);
   }
 
-  private int queueDepth(String queue) {
+  private long queueDepth(String queue) {
     var info = rabbitAdmin.getQueueInfo(queue);
     return info == null ? 0 : info.getMessageCount();
   }
@@ -1656,7 +1970,9 @@ class Stage3IntegrationTest {
   private static MySQLContainer<?> mysqlContainer(String database) {
     return new MySQLContainer<>(MYSQL_IMAGE)
         .withDatabaseName(database)
-        .withCommand("mysqld", "--innodb-redo-log-capacity=128M")
+        // Fault-injection triggers are allowed only in this disposable test database.
+        .withCommand(
+            "mysqld", "--innodb-redo-log-capacity=128M", "--log-bin-trust-function-creators=ON")
         .withTmpFs(Map.of("/var/lib/mysql", "rw,noexec,nosuid,size=1g"))
         .withStartupTimeoutSeconds(300)
         .withUsername("eventflow_test")
@@ -1678,9 +1994,7 @@ class Stage3IntegrationTest {
     String content = header + "." + payload;
     Mac mac = Mac.getInstance("HmacSHA256");
     mac.init(new SecretKeySpec(JWT_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-    return content
-        + "."
-        + base64Url(mac.doFinal(content.getBytes(StandardCharsets.US_ASCII)));
+    return content + "." + base64Url(mac.doFinal(content.getBytes(StandardCharsets.US_ASCII)));
   }
 
   private static String base64Url(byte[] value) {
@@ -1689,7 +2003,8 @@ class Stage3IntegrationTest {
 
   private static String sha256Hex(String value) throws Exception {
     return HexFormat.of()
-        .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.US_ASCII)));
+        .formatHex(
+            MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.US_ASCII)));
   }
 
   private static byte[] randomBytes(int length) {

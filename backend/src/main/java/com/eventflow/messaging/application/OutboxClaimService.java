@@ -28,7 +28,10 @@ public class OutboxClaimService {
   @Transactional
   public OutboxClaim claimOne() {
     LocalDateTime now = utc(clock);
-    OutboxEventEntity event = mapper.lockNextDue(now);
+    // The candidate read takes no range locks. The conditional primary-key UPDATE is the
+    // synchronization point: only one owner can replace a due/expired lease, even after a stale
+    // read.
+    OutboxEventEntity event = mapper.findNextDue(now);
     if (event == null) {
       return null;
     }

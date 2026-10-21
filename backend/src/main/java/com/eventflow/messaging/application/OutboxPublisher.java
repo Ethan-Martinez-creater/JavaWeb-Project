@@ -13,7 +13,10 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Claims and publishes small batches while keeping each network call outside a DB transaction. */
 @Service
@@ -41,10 +44,19 @@ public class OutboxPublisher {
   }
 
   /** Publishes up to the configured batch size, claiming each row immediately before its send. */
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public int publishBatchOnce() {
     int published = 0;
     for (int index = 0; index < properties.getPublisherBatchSize(); index++) {
-      OutboxClaim claim = claims.claimOne();
+      OutboxClaim claim;
+      try {
+        claim = claims.claimOne();
+      } catch (TransientDataAccessException error) {
+        // A failed claim transaction is rolled back; an ambiguous connection loss recovers by
+        // lease.
+        log.warn("Outbox claim deferred type={}", error.getClass().getName());
+        break;
+      }
       if (claim == null) {
         break;
       }

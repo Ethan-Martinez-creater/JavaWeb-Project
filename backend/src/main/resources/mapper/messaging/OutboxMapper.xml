@@ -11,11 +11,11 @@
   <select id="findByEventId" resultType="com.eventflow.messaging.domain.OutboxEventEntity">
     SELECT <include refid="columns"/> FROM outbox_events WHERE event_id = #{eventId}
   </select>
-  <select id="lockNextDue" resultType="com.eventflow.messaging.domain.OutboxEventEntity">
+  <select id="findNextDue" resultType="com.eventflow.messaging.domain.OutboxEventEntity">
     SELECT <include refid="columns"/> FROM outbox_events
     WHERE (status = 'PENDING' AND next_attempt_at &lt;= #{now})
        OR (status = 'CLAIMED' AND lease_until &lt;= #{now})
-    ORDER BY created_at, event_id LIMIT 1 FOR UPDATE SKIP LOCKED
+    ORDER BY created_at, event_id LIMIT 1
   </select>
   <update id="claim">
     UPDATE outbox_events

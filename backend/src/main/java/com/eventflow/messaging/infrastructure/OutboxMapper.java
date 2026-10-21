@@ -11,7 +11,7 @@ public interface OutboxMapper {
 
   OutboxEventEntity findByEventId(@Param("eventId") String eventId);
 
-  OutboxEventEntity lockNextDue(@Param("now") LocalDateTime now);
+  OutboxEventEntity findNextDue(@Param("now") LocalDateTime now);
 
   int claim(
       @Param("eventId") String eventId,

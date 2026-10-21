@@ -502,6 +502,33 @@ class Stage1IntegrationTest {
   }
 
   @Test
+  void organizerCanReloadOwnedDraftDetailWithoutLeakingItToOtherUsers() throws Exception {
+    long eventId = createEvent(organizerToken, "Reloadable draft");
+    long session = addSession(organizerToken, eventId, "Session", futureStart(), futureEnd());
+    long sku = addSku(organizerToken, session, "Ticket", 1250, 3);
+    String path = "/api/v1/organizer/events/" + eventId;
+    HttpResponse<String> owner = call("GET", path, organizerToken, null);
+    assertStatus(200, owner);
+    assertEquals("DRAFT", json(owner).path("status").asText());
+    assertEquals(
+        sku, json(owner).path("sessions").path(0).path("ticketSkus").path(0).path("id").asLong());
+    assertStatus(200, call("GET", path, adminToken, null));
+    HttpResponse<String> nonOwner = call("GET", path, secondOrganizerToken, null);
+    HttpResponse<String> missing =
+        call("GET", "/api/v1/organizer/events/9223372036854775807", organizerToken, null);
+    assertStatus(404, nonOwner);
+    assertStatus(404, missing);
+    assertEquals(json(missing).path("code").asText(), json(nonOwner).path("code").asText());
+    assertEquals(json(missing).path("message").asText(), json(nonOwner).path("message").asText());
+    assertStatus(403, call("GET", path, userToken, null));
+    assertStatus(401, call("GET", path, null, null));
+    assertStatus(404, call("GET", "/api/v1/events/" + eventId, null, null));
+    assertStatus(200, call("POST", path + "/publish", organizerToken, null));
+    assertEquals(
+        "PUBLISHED", json(call("GET", path, organizerToken, null)).path("status").asText());
+  }
+
+  @Test
   void organizerCreatesAndEditsDraftsButCannotOverrideOwnerOrStatus() throws Exception {
     HttpResponse<String> forged =
         call(

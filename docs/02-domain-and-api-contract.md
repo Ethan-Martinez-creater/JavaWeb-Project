@@ -53,6 +53,7 @@
 
 主办方：
 - GET /api/v1/organizer/events?page=0&size=20 → 200，仅本人活动。
+- GET /api/v1/organizer/events/{id}（Stage 4 补充）→ 200，含场次/票种的本人活动详情，可在刷新后继续编辑草稿；ADMIN 可读取。非本人和不存在统一 404，普通 USER 403，匿名 401。此入口不走公开缓存，也不放宽公开草稿隐藏规则。
 - POST /api/v1/organizer/events，输入 {title,description} → 201 DRAFT 活动；ORGANIZER 或 ADMIN。
 - PATCH /api/v1/organizer/events/{id}，修改 DRAFT 的 title/description；只有本人或 ADMIN。
 - POST /api/v1/organizer/events/{eventId}/sessions，输入 {title,startsAt,endsAt,location}；仅 DRAFT，必须属于本人；201。

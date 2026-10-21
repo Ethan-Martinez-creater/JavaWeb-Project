@@ -49,6 +49,11 @@ public class OrganizerEventController {
     return service.create(userId(jwt), input);
   }
 
+  @GetMapping("/events/{id}")
+  public EventResponse detail(@AuthenticationPrincipal Jwt jwt, @PathVariable @Positive long id) {
+    return service.ownedDetail(id, userId(jwt), admin(jwt));
+  }
+
   @PatchMapping("/events/{id}")
   public EventResponse edit(
       @AuthenticationPrincipal Jwt jwt,

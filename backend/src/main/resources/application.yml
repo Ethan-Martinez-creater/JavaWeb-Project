@@ -63,6 +63,19 @@ mybatis:
     map-underscore-to-camel-case: true
 
 app:
+  messaging:
+    enabled: ${MESSAGING_ENABLED:true}
+    publisher-schedule-enabled: ${OUTBOX_PUBLISHER_ENABLED:true}
+    publisher-delay-ms: ${OUTBOX_PUBLISHER_DELAY_MS:1000}
+    publisher-batch-size: ${OUTBOX_PUBLISHER_BATCH_SIZE:50}
+    claim-lease-ms: ${OUTBOX_CLAIM_LEASE_MS:30000}
+    confirm-timeout-ms: ${RABBIT_CONFIRM_TIMEOUT_MS:5000}
+    publish-backoff-base-ms: ${OUTBOX_PUBLISH_BACKOFF_BASE_MS:1000}
+    publish-backoff-max-ms: ${OUTBOX_PUBLISH_BACKOFF_MAX_MS:300000}
+    expiry-listener-enabled: ${ORDER_EXPIRY_LISTENER_ENABLED:true}
+    notification-listener-enabled: ${NOTIFICATION_LISTENER_ENABLED:true}
+    consumer-max-retries: ${MESSAGE_CONSUMER_MAX_RETRIES:3}
+    consumer-retry-delay-ms: ${MESSAGE_CONSUMER_RETRY_DELAY_MS:5000}
   orders:
     expiry-scan-enabled: ${ORDER_EXPIRY_SCAN_ENABLED:true}
     expiry-scan-delay-ms: ${ORDER_EXPIRY_SCAN_DELAY_MS:30000}

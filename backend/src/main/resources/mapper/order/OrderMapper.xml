@@ -51,7 +51,7 @@
   <select id="findExpired" resultType="long">
     SELECT id FROM orders WHERE status = 'PENDING_PAYMENT' AND expires_at &lt;= #{now}
       AND expiry_retry_at &lt;= #{now}
-    ORDER BY expires_at, id LIMIT #{limit}
+    ORDER BY expiry_retry_at, expires_at, id LIMIT #{limit}
   </select>
   <select id="expiryRetryAttempts" resultType="int">
     SELECT expiry_retry_attempts FROM orders WHERE id = #{id} AND status = 'PENDING_PAYMENT' FOR UPDATE

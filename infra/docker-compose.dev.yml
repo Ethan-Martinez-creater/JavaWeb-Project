@@ -44,7 +44,8 @@ services:
     volumes:
       - eventflow_rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # Run as the broker user; a root probe can create an unreadable Erlang cookie on first boot.
+      test: ["CMD", "su-exec", "rabbitmq", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
       timeout: 5s
       retries: 30

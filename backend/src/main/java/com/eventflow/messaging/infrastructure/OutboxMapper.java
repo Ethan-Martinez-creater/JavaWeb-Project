@@ -29,5 +29,4 @@ public interface OutboxMapper {
       @Param("owner") String owner,
       @Param("nextAttemptAt") LocalDateTime nextAttemptAt,
       @Param("errorCode") String errorCode);
-
 }

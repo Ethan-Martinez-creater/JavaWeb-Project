@@ -3,7 +3,7 @@
 ## 元数据
 
 - Stage：3，实现与验证后交付集中审核，不自行声明 ACCEPT。
-- 分支：`codex/stage-3-redis-rabbitmq → main`。PR URL 与最终 CI 在验证完成后填写。
+- 分支：`codex/stage-3-redis-rabbitmq → main`；[Stage 3 PR #4](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/pull/4)，保持打开、不合并。
 - Base SHA：`52dbbe098634fea92af001ce8e7639d25faff66d`；包含 Stage 2 PR #3 合并 `2ede68ebfdf88cd322811c10399c5f87e6d9f108`。
 - 本机完整验证的实现 SHA：`e7a95496e403b47d8b59b36ffa1ca5dd8c82d4b6`；后续为交接/CI 证据更新，最终 Head 以 PR 为准，避免文档自引用 SHA。
 - 执行位置：Codex 桌面端终端可访问的用户 Windows 10 Home 19045 x64；GitHub Actions 为独立 Ubuntu Linux 环境，二者分别记录。
@@ -40,13 +40,13 @@ Docker daemon 29.7.2 / Linux engine；Compose 5.3.1。没有安装、升级 OS/W
 | DB 扫描与 101+ 毒单公平退避 | PASS | MQ stop_app 时前100缺明细毒单退避，健康第101单下一轮关闭；退避前次数不增、到期后重试 |
 | V1→V2→V3 既有数据迁移 | PASS | 保留用户角色、BCrypt hash、活动/场次/库存/订单金额/PAID/票及票码摘要；只追加 V3，未改 V1/V2 |
 | 原 Stage 1/2 30 项与 1000 请求回归 | PASS | 原断言保留；本机 30/0/0/0，100×201 + 900×SOLD_OUT，库存0 |
-| Linux CI / Spotless / 全部测试 | UNVERIFIED | 待 PR CI |
+| Linux CI / Spotless / 全部测试 | PASS | [Linux CI run 39595379280](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39595379280)：42/0/0/0，三个 artifact 均上传成功；当前 Head 见 [PR Checks](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/pull/4/checks) |
 | 独立开发容器版本/健康 | PASS | 实际命令与输出见上 |
 | 打包应用与带密码 Compose 闭环 | PASS | [脱敏原始 JSON](stage-3-smoke.json)：health UP、V2→V3、库存 4→3、PAID、1 条 ORDER_PAID 通知 |
 
 ## 测试执行与原始证据
 
-本机完整结果：2026-10-21 19:45:17（Asia/Shanghai）结束，Maven Wrapper `spotless:apply verify`（包含 validate 的 Spotless check）**BUILD SUCCESS，42 tests / 0 failures / 0 errors / 0 skipped**，总计 4:12。其中 Stage 1/2 原30项全部保留，Stage 3 新增12项真实三中间件测试。Linux CI 尚待 PR 后运行，不与本机结果混为一谈。
+本机完整结果：2026-10-21 19:45:17（Asia/Shanghai）结束，Maven Wrapper `spotless:apply verify`（包含 validate 的 Spotless check）**BUILD SUCCESS，42 tests / 0 failures / 0 errors / 0 skipped**，总计 4:12。其中 Stage 1/2 原30项全部保留，Stage 3 新增12项真实三中间件测试。独立 `spotless:check` 于19:48:26通过（2.336秒）。
 
 | 本机 Surefire suite | Tests | Failures / Errors / Skipped | 耗时（秒） |
 |---|---:|---|---:|
@@ -55,6 +55,26 @@ Docker daemon 29.7.2 / Linux engine；Compose 5.3.1。没有安装、升级 OS/W
 | Stage3IntegrationTest | 12 | 0 / 0 / 0 | 125.251 |
 
 [本机故障原始 JSON](stage-3-fault-local.json) 包含13条通过断言后的故障观察（一个测试可产生多条观察）；[本机1000请求原始 JSON](stage-3-concurrency-local.json) 得到 100×201、900×SOLD_OUT 409，数据库 pending orders/items/quantity 各100、不同订单所有者100、剩余库存0，无吞吐或 QPS 声明。
+
+### 独立 Linux CI
+
+[run 39595379280](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39595379280) 在代码/证据提交 `a8d457e5be8663bab3905e2131120317c1ea58e1` 上运行，2026-10-21 11:56:38 UTC（19:56:38 Asia/Shanghai）完成 Maven `./mvnw --batch-mode spotless:check verify`：**BUILD SUCCESS，42 / 0 / 0 / 0，总计2:34**。使用干净 Ubuntu checkout、Java21、Maven Central 和真实三中间件，无跳过；不使用本机开发容器或镜像设置。
+
+| Linux suite | Tests | Failures / Errors / Skipped | 耗时（秒，CI日志） |
+|---|---:|---|---:|
+| Stage1IntegrationTest | 13 | 0 / 0 / 0 | 27.62 |
+| Stage2IntegrationTest | 17 | 0 / 0 / 0 | 15.87 |
+| Stage3IntegrationTest | 12 | 0 / 0 / 0 | 49.43 |
+
+已下载并读取 [CI故障原始JSON](stage-3-fault-ci.json) 和 [CI1000请求原始JSON](stage-3-concurrency-ci.json)：13条故障观察全部passed；1000请求仍为100成功/900售罄/余量0。ZIP的SHA-256与GitHub artifact元数据一致，未仅凭CI绿灯推断业务正确性。Surefire、并发、故障三个上传步骤全部成功。
+
+| CI artifact | ID | ZIP SHA-256 |
+|---|---:|---|
+| stage-3-fault-results | 12342869103 | `4f85f8ddfee6b438c5e4a41eb8044be9b513104b415b8dc477f77725bcd9e34c` |
+| stage-2-concurrency-result | 12343732713 | `f1c8232029d1687cc562a42cd79a04977826fd91f82c3f5e8882ddbe7ef7b73f` |
+| surefire-reports | 12342924023 | 由CI上传；测试计数与耗时已从job原始日志逐项核对 |
+
+本报告后续提交仅补PR/CI证据，不改已验证业务代码；最终Head的重新检查以PR Checks为准。
 
 测试曾真实捕获两类问题并修复：临时 MySQL 的二进制日志限制阻止故障注入 trigger 创建，仅在一次性测试容器启用 `log-bin-trust-function-creators`；并行 publisher 的范围锁认领引发死锁，已改主键条件原子认领、owner 条件落状态与瞬时失败下次调度恢复。支付/关闭 Outbox 插入失败的票据、库存和状态回滚也加入回归。修复后的42项全量通过；开发 Compose 和宿主数据库未启用上述测试特例。
 
@@ -92,7 +112,7 @@ Set-Location backend
 - [x] V3 增量迁移与既有数据保持；原 V1/V2 未修改。
 - [x] 本机42项真实测试、1000请求回归、带密码开发容器/打包应用冒烟。
 - [x] 设计决策、关键调用链、API、README 与脱敏原始证据。
-- [ ] Linux CI 与 PR 链接：创建 PR 后补入真实结果。
+- [x] Linux CI 42项通过，PR与CI链接、已下载核对的故障/并发原始JSON已补齐。
 - [x] 不自行合并，不开始 Stage 4，交付集中审核。
 
 ## 设计取舍、风险与定位
@@ -104,6 +124,6 @@ Set-Location backend
 - Publisher 无限持久重试但延迟封顶；消费重试有界后 DLQ。积压与 DLQ 需要运维观察；人工单事件重驱动见 README，保留原 DLQ 证据。
 - 单节点开发 durable 队列不提供 broker 磁盘灾难恢复；生产复制、保留清理/归档策略、监控平台、真实容量评估不在本阶段。没有吞吐/QPS 宣传。
 - 推荐先看 OrderService 的三个 Outbox 调用、RedisPublishedEventCache、OutboxPublisher、消费事务与监听 ack 的代理边界，再看 scanner retry 和集成测试。
-- 经本机测试未发现尚未修复的 P0/P1；P2 边界为上述匿名随机 ID 回源、单节点 broker、积压监控与数据保留策略。Linux CI 在 PR 创建前仍为 UNVERIFIED，完成后在此补证；未做容量基准、broker 磁盘损坏、多节点故障或真实支付网关测试，均不在本阶段 Gate 范围。
+- 经本机与Linux CI测试未发现尚未修复的 P0/P1；P2 边界为上述匿名随机 ID 回源、单节点 broker、积压监控与数据保留策略。本阶段必需测试矩阵无未验证项；未做容量基准、broker 磁盘损坏、多节点故障或真实支付网关测试，均不在本阶段 Gate 范围。
 
 本 PR 交付条件为打开 PR，不自行合并；未开始 Stage 4。

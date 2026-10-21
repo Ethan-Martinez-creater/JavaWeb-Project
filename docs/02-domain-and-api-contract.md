@@ -1,6 +1,6 @@
 # 领域模型与 REST API 契约（Stage 1–3）
 
-本文件定义各阶段共有的业务约束。Stage 1/2 已验收；Stage 3 当前获授权，Redis/RabbitMQ 具体新契约以 docs/09-stage-3-codex-task.md 为准，Codex 在本阶段提交中更新；Stage 4 暂未授权。
+本文件定义各阶段共有的业务约束。Stage 1/2/3 已验收；Stage 4 当前授权 UI 与完整部署，现有后端 API 作为实现前端的权威契约。Stage 4 不得为方便 UI 擅自降低安全边界；如需补充接口须记录契约和真实集成测试。
 
 ## 1. 角色与边界
 
@@ -24,7 +24,7 @@
 ### Stage 2（V2 订单与票据）
 - V2 不改写已发布的 V1；完整字段、约束、状态与幂等语义见 §5。每个订单固定一个 SKU、一张票。
 
-### Stage 3（只做设计预留）
+### Stage 3（V3 Outbox 与通知）
 - outbox_events: 事务内事件记录、发布状态、重试信息、唯一事件 ID。
 - consumed_messages 或等价持久化幂等记录；辅以订单状态条件更新。
 - RabbitMQ 负责超时/通知异步事件；周期扫描提供漏消息补偿；MySQL 最终判定订单状态和库存。

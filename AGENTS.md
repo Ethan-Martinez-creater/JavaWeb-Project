@@ -1,13 +1,14 @@
 # Instructions for coding agents (Codex)
 
-This repository uses stage-gated delivery. **Stage 0 PR #1, Stage 1 PR #2 and Stage 2 PR #3 were ACCEPTED and merged. Stage 3 is now authorized.** Start from latest main including PR #3. Read docs/09-stage-3-codex-task.md. Previous stage instructions are historical and all existing invariants must remain intact. Read these files before writing code:
+This repository uses stage-gated delivery. **Stage 0 PR #1, Stage 1 PR #2, Stage 2 PR #3 and Stage 3 PR #4 were ACCEPTED and merged. Stage 4 is now authorized.** Start from latest main including PR #4. Read docs/10-stage-4-codex-task.md. Previous stages are historical; preserve all their tested invariants. Read these files before writing code:
 1. docs/00-project-charter.md
 2. docs/01-architecture-and-code-style.md
 3. docs/02-domain-and-api-contract.md
 4. docs/03-stage-roadmap-and-gates.md
-5. docs/09-stage-3-codex-task.md (Stage 3, current)
-6. docs/08-stage-2-codex-task.md (historical Stage 2)
-7. docs/04-stage-1-codex-task.md (historical Stage 1)
+5. docs/10-stage-4-codex-task.md (Stage 4, current)
+6. docs/09-stage-3-codex-task.md (historical Stage 3)
+7. docs/08-stage-2-codex-task.md (historical Stage 2)
+8. docs/04-stage-1-codex-task.md (historical Stage 1)
 
 ## Stage 0 environment preflight decisions (completed)
 
@@ -19,8 +20,8 @@ This repository uses stage-gated delivery. **Stage 0 PR #1, Stage 1 PR #2 and St
 
 ## Source of truth / execution
 
-- The documents in main specify product scope, contracts and coding rules. **Now that Stage 2 PR #3 is merged**, work on branch codex/stage-3-redis-rabbitmq for Stage 3, branching from latest main. Never push feature code directly to main.
-- Complete **only Stage 3** and all its acceptance criteria. Introduce Redis/RabbitMQ solely for the specified Stage 3 use cases; do not start Stage 4 or create a Vue frontend.
+- The documents in main specify product scope, contracts and coding rules. **Now that Stage 3 PR #4 is merged**, work on branch codex/stage-4-ui-deployment-learning for Stage 4, branching from latest main. Never push feature code directly to main.
+- Complete **only Stage 4** and all acceptance criteria in docs/10-stage-4-codex-task.md; implement Vue 3 frontend and deployment without rewriting the Stage 1–3 back end or adding microservices.
 - You are the implementer, not the reviewer. Do not merge PRs and do not declare a stage approved. Await human/ChatGPT stage-gate review before moving on.
 - You may make normal engineering decisions without frequent questions; record impactful decisions as short ADRs under docs/decisions/. Do not silently change fixed technology/architecture, scope or security constraints.
 - Use idiomatic Java 21, Spring Boot 4.1.1 and the MyBatis Starter compatible with Boot 4.1; confirm dependency coordinates/version availability during build. Use MyBatis, **not JPA/MyBatis-Plus**, for persistence. Avoid unnecessary abstractions.
@@ -29,7 +30,7 @@ This repository uses stage-gated delivery. **Stage 0 PR #1, Stage 1 PR #2 and St
 - Use externalized secrets, robust validation, centralized exceptions, UTC timestamps and reproducible Flyway migrations. No hard-coded real credentials or tokens.
 - All changed functionality requires tests. Run formatting and tests with the committed Maven Wrapper. Tests requiring MySQL should run against real MySQL using Testcontainers (do not substitute H2). If Docker/build infrastructure is unavailable, report exact commands, errors and unverified checks; never claim a test passed without execution.
 - Do not make gratuitous library/version swaps to resolve one error. Consult official docs and document alternatives if necessary.
-- Keep PR manageable by logical commits; create one stage PR with reproducible results and docs/handoffs/stage-3.md using docs/05-handoff-template.md. Include a completed checklist, risks, commands and real observed results.
+- Keep PR manageable by logical commits; create one stage PR with reproducible results and docs/handoffs/stage-4.md using docs/05-handoff-template.md. Do not merge your own final PR. Include a completed checklist, risks, commands and real observed results.
 - Stage delivery condition is **PR open, not merged**, and a succinct message containing PR URL and SHA.
 
 ## Stage changes

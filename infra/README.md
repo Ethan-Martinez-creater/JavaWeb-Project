@@ -34,7 +34,7 @@ docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/doc
 
 ## 真实浏览器 E2E
 
-`docker-compose.e2e.yml` 只增加浏览器测试容器，不属于五服务开发部署。Playwright 与浏览器在匹配版本的 Microsoft Playwright 镜像中运行。测试项目应使用一次性项目名，例如 `eventflow-e2e-<run-id>`，从空数据库执行 Flyway，然后由真实前端和 Spring/MQ 服务完成发布、浏览、预约、模拟支付、码轮换、核销和通知。测试服务将脱敏 JSON、Playwright 报告与截图写到 `e2e/artifacts`。
+`docker-compose.e2e.yml` 只增加浏览器测试容器，不属于五服务开发部署。Playwright 与浏览器在匹配版本的 Microsoft Playwright 镜像中运行。测试项目应使用一次性项目名，例如 `eventflow-e2e-<run-id>`，从空数据库执行 Flyway，然后由真实前端和 Spring/MQ 服务完成发布、浏览、预约、模拟支付、码轮换、核销和通知。测试服务将脱敏 JSON、Playwright 报告与截图写到 `e2e/artifacts`。报告只保留测试标题、状态和耗时，不保存 Playwright 失败调用日志，因为其输入回显可能包含密码或一次性核销码。
 
 浏览器测试要求 `.build-cache/stage4.env` 中的 `SPRING_PROFILES_ACTIVE=dev`、`DEV_ORGANIZER_EMAIL` 和 `DEV_ORGANIZER_PASSWORD` 已配置。使用全新 E2E 项目时，它会创建独立命名卷，不访问 `eventflow-full` 或三服务开发数据库；测试完成后不调用 `down -v`。把随机 E2E 项目名与卷保留，便于检查失败数据和人工复盘。
 

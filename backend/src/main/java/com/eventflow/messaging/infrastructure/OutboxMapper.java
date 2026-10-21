@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.Param;
 public interface OutboxMapper {
   int insert(OutboxEventEntity event);
 
-  OutboxEventEntity findByEventId(String eventId);
+  OutboxEventEntity findByEventId(@Param("eventId") String eventId);
 
   OutboxEventEntity lockNextDue(@Param("now") LocalDateTime now);
 

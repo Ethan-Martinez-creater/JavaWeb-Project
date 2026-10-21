@@ -3,7 +3,7 @@ FROM node:24.15.0-alpine3.22 AS build
 WORKDIR /workspace/frontend
 RUN npm install --global pnpm@11.21.0
 
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY frontend/ ./

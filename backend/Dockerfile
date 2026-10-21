@@ -1,5 +1,8 @@
 FROM eclipse-temurin:21.0.9_10-jdk-jammy AS build
 
+# The committed Maven Wrapper prefers the ZIP distribution and validates its checksum.
+RUN apt-get update && apt-get install -y --no-install-recommends unzip
+
 WORKDIR /workspace/backend
 
 # Copy the wrapper and dependency descriptor first so source edits do not invalidate dependency download layers.

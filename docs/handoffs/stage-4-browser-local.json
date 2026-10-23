@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "passed": 1,
+  "failed": 0,
+  "skipped": 0,
+  "interrupted": 0,
+  "globalErrors": [],
+  "tests": [
+    {
+      "title": "real UI publishes, reserves, pays, rotates, checks in, and notifies",
+      "status": "passed",
+      "expectedStatus": "passed",
+      "durationMs": 7972,
+      "retry": 0,
+      "errorLocations": []
+    }
+  ]
+}

@@ -161,6 +161,8 @@ test('real UI publishes, reserves, pays, rotates, checks in, and notifies', asyn
   await fieldInput(page, 'event-search').press('Enter');
   await expect(page.getByTestId(`event-card-${eventId}`)).toBeVisible();
   await mkdir(outputDirectory, { recursive: true });
+  // Let real success toasts expire so they do not cover the public page screenshots.
+  await expect(page.locator('.el-message')).toHaveCount(0);
   await page.screenshot({ path: path.join(outputDirectory, 'events-listing-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect

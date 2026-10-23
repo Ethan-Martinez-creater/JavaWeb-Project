@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-10-21T14:06:24.4573162Z",
+  "environment": "Codex desktop execution on user Windows host; Docker Desktop Linux engine; not a remote runner",
+  "jdk": "21.0.9",
+  "maven": "3.8.6 via committed wrapper",
+  "command": "mvnw.cmd -B spotless:check verify (read existing -gs settings; D-drive caches)",
+  "buildSuccess": true,
+  "suites": [
+    {
+      "suite": "com.eventflow.Stage1IntegrationTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 70.918
+    },
+    {
+      "suite": "com.eventflow.Stage2IntegrationTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 70.985
+    },
+    {
+      "suite": "com.eventflow.Stage3IntegrationTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 238.408
+    }
+  ],
+  "totalTests": 43,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "elapsed": "07:15",
+  "notes": "Original 42 tests unchanged; one new real MySQL owner-detail authorization test. Expected fault-injection log errors are asserted by the passing Stage3 suite."
+}

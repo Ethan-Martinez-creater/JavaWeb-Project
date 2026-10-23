@@ -10,13 +10,13 @@
 Set-Location D:\JavaWeb_Project
 .\infra\New-LocalStackEnv.ps1 -OutputPath .build-cache/stage4.env
 
-docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/docker-compose.full.yml up --build -d
+docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/docker-compose.full.yml up --build -d --wait --wait-timeout 300
 docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/docker-compose.full.yml ps
 ```
 
 脚本只在项目工作区创建被 Git 忽略的 `.build-cache/stage4.env`，每项密码由本地密码学随机数生成；如果文件已存在，脚本拒绝覆盖。它不会输出密码。应用的 `dev` profile 显式启用主办方初始化，只使用该文件里单独配置的 ORGANIZER 账号。公开注册接口仍然只创建 USER。
 
-打开 <http://127.0.0.1:8088/>。Nginx 对浏览器提供同源 `/api/v1` 与 `/actuator/health` 代理；MySQL Flyway 会在 Spring Boot 启动时执行 V1、V2、V3。Compose 将等待 MySQL、Redis 和 RabbitMQ 的健康检查通过后再启动后端，再等后端 readiness 后启动网站。
+打开 <http://127.0.0.1:8088/>。Nginx 对浏览器提供同源 `/api/v1` 与 `/actuator/health` 代理；MySQL Flyway 会在 Spring Boot 启动时执行 V1、V2、V3。Compose 将等待 MySQL、Redis 和 RabbitMQ 的健康检查通过后再启动后端，再等后端整体健康状态通过后启动网站。
 
 ## 服务与数据隔离
 
@@ -40,9 +40,13 @@ docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/doc
 
 ```powershell
 $e2eProject = 'eventflow-e2e-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
-docker compose --env-file .build-cache/stage4.env -p $e2eProject -f infra/docker-compose.full.yml -f infra/docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e
+docker compose --env-file .build-cache/stage4.env -p $e2eProject -f infra/docker-compose.full.yml up --build -d --wait --wait-timeout 300
+if ($LASTEXITCODE -ne 0) { throw 'Full stack is not healthy' }
+docker compose --env-file .build-cache/stage4.env -p $e2eProject -f infra/docker-compose.full.yml -f infra/docker-compose.e2e.yml run --build --rm e2e
 $e2eExit = $LASTEXITCODE
 if ($e2eExit -ne 0) { throw "Playwright E2E failed with exit code $e2eExit" }
+./infra/Verify-Persistence.ps1 -EnvFile .build-cache/stage4.env -Project $e2eProject
+docker compose --env-file .build-cache/stage4.env -p $e2eProject -f infra/docker-compose.full.yml stop
 ```
 
 首次镜像和包需要网络下载。E2E 项目名唯一可保证第一次运行是空库；CI 在每个全新 runner 上运行，因此 CI 的 E2E 库也是空的。对失败运行，请保留输出和卷；修复后另建项目名复跑。

@@ -8,6 +8,8 @@ const baseURL = process.env.BASE_URL ?? 'http://127.0.0.1:8088';
 const organizerEmail = process.env.E2E_ORGANIZER_EMAIL;
 const organizerPassword = process.env.E2E_ORGANIZER_PASSWORD;
 const completedSteps: string[] = [];
+const browserErrorNames: string[] = [];
+let publicDetailStatus: number | null = null;
 
 function requireOrganizerCredentials(): { email: string; password: string } {
   if (!organizerEmail || !organizerPassword) {
@@ -22,7 +24,9 @@ function utcDateTimeInput(value: Date): string {
 }
 
 function fieldInput(page: Page, testId: string) {
-  return page.getByTestId(testId).locator('input, textarea').first();
+  // ElInput forwards attrs to the native input; ElInputNumber keeps them on its wrapper.
+  const selector = `[data-testid="${testId}"]`;
+  return page.locator(`${selector}:is(input, textarea), ${selector} input, ${selector} textarea`).first();
 }
 
 async function login(page: Page, email: string, password: string): Promise<string> {
@@ -50,6 +54,8 @@ async function writeEvidence(testInfo: TestInfo): Promise<void> {
     retry: testInfo.retry,
     durationMs: testInfo.duration,
     completedSteps: [...completedSteps],
+    browserErrorNames: [...browserErrorNames],
+    publicDetailStatus,
     sensitiveValuesRecorded: false,
   };
   await writeFile(
@@ -59,12 +65,22 @@ async function writeEvidence(testInfo: TestInfo): Promise<void> {
   );
 }
 
-test.afterEach(async (_fixtures, testInfo) => {
+test.afterEach(async ({}, testInfo) => {
   await writeEvidence(testInfo);
 });
 
 test('real UI publishes, reserves, pays, rotates, checks in, and notifies', async ({ page }) => {
   completedSteps.length = 0;
+  browserErrorNames.length = 0;
+  publicDetailStatus = null;
+  // Keep only error types: arbitrary browser messages can contain private form values.
+  page.on('pageerror', (error) => browserErrorNames.push(error.name));
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    // Vue catches render/setup exceptions; they reach console.error instead of pageerror.
+    const errorType = /^(TypeError|ReferenceError|RangeError|SyntaxError|Error)\b/.exec(message.text())?.[1];
+    if (errorType) browserErrorNames.push(errorType);
+  });
   const credentials = requireOrganizerCredentials();
   const eventTitle = `E2E event ${randomUUID().slice(0, 8)}`;
   const userEmail = `stage4-${randomUUID()}@example.test`;
@@ -94,6 +110,7 @@ test('real UI publishes, reserves, pays, rotates, checks in, and notifies', asyn
   const eventId = createdEvent.id;
   expect(Number.isSafeInteger(eventId)).toBe(true);
   await expect(page).toHaveURL(new RegExp(`/organizer/events/${eventId}/edit$`));
+  await expect(fieldInput(page, 'event-title-input')).toHaveValue(eventTitle);
 
   await fieldInput(page, 'event-description-input').fill('已编辑的真实 MySQL 与 RabbitMQ 全栈浏览器验收。');
   const editEventResponsePromise = page.waitForResponse(
@@ -177,7 +194,16 @@ test('real UI publishes, reserves, pays, rotates, checks in, and notifies', asyn
   await fieldInput(page, 'event-search').fill(eventTitle);
   await fieldInput(page, 'event-search').press('Enter');
   await expect(page.getByTestId(`event-card-${eventId}`)).toBeVisible();
+  const detailResponsePromise = page.waitForResponse(
+    (response) => response.request().method() === 'GET' && response.url().endsWith(`/api/v1/events/${eventId}`),
+  );
   await page.getByTestId(`event-link-${eventId}`).click();
+  const detailResponse = await detailResponsePromise;
+  publicDetailStatus = detailResponse.status();
+  expect(publicDetailStatus).toBe(200);
+  const publicDetail = await detailResponse.json();
+  expect(publicDetail).toMatchObject({ id: eventId, title: eventTitle, status: 'PUBLISHED' });
+  expect(publicDetail.sessions).toHaveLength(1);
   await expect(page.getByTestId('event-title')).toContainText(eventTitle);
   await page.getByTestId('refresh-event').click();
   await page.getByTestId('sku-select').selectOption({ index: 0 });
@@ -259,4 +285,5 @@ test('real UI publishes, reserves, pays, rotates, checks in, and notifies', asyn
     )
     .toContain('was paid.');
   completedSteps.push('RabbitMQ consumer persisted and UI displayed the ORDER_PAID notification');
+  expect(browserErrorNames).toEqual([]);
 });

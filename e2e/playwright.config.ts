@@ -13,6 +13,7 @@ export default defineConfig({
   use: {
     ...devices['Desktop Chrome'],
     baseURL: process.env.BASE_URL ?? 'http://127.0.0.1:8088',
+    actionTimeout: 15_000,
     locale: 'zh-CN',
     timezoneId: 'UTC',
     trace: 'off',

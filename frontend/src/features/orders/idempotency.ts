@@ -10,8 +10,8 @@ export function isReservationStorageAvailable(
     storage: KeyStorage | null = browserSessionStorage(),
 ): boolean {
     if (!storage) return false
-    const probeKey = `eventflow:reservation:probe:${globalThis.crypto.randomUUID()}`
-    const probeValue = globalThis.crypto.randomUUID()
+    const probeKey = `eventflow:reservation:probe:${randomReservationKey()}`
+    const probeValue = randomReservationKey()
     try {
         storage.setItem(probeKey, probeValue)
         return storage.getItem(probeKey) === probeValue
@@ -47,7 +47,7 @@ export function getReservationKey(
     const existing = safeRead(storage, storageKey) ?? memoryKeys.get(storageKey)
     if (existing && /^[A-Za-z0-9_-]{8,64}$/.test(existing)) return existing
 
-    const key = globalThis.crypto.randomUUID()
+    const key = randomReservationKey()
     memoryKeys.set(storageKey, key)
     try {
         storage?.setItem(storageKey, key)
@@ -77,6 +77,12 @@ function safeRead(storage: KeyStorage | null, key: string): string | null {
     } catch {
         return null
     }
+}
+
+function randomReservationKey(): string {
+    // getRandomValues remains available on local HTTP service names, unlike randomUUID.
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 function browserSessionStorage(): KeyStorage | null {

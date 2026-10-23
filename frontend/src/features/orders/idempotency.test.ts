@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     clearReservationKey,
     getReservationKey,
     isReservationStorageAvailable,
     reservationKeyName,
 } from './idempotency'
+
+afterEach(() => vi.unstubAllGlobals())
 
 function memoryStorage() {
     const values = new Map<string, string>()
@@ -16,6 +18,18 @@ function memoryStorage() {
 }
 
 describe('reservation idempotency keys', () => {
+    it('supports HTTP browser contexts that do not expose randomUUID', () => {
+        vi.stubGlobal('crypto', {
+            getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto),
+        })
+        const storage = memoryStorage()
+        expect(isReservationStorageAvailable(storage)).toBe(true)
+        const key = getReservationKey(19, 37, storage)
+        expect(key).toMatch(/^[a-f0-9]{32}$/)
+        expect(getReservationKey(19, 37, storage)).toBe(key)
+        expect(getReservationKey(19, 38, storage)).not.toBe(key)
+    })
+
     it('detects when session storage cannot retain a key', () => {
         expect(isReservationStorageAvailable(memoryStorage())).toBe(true)
         expect(

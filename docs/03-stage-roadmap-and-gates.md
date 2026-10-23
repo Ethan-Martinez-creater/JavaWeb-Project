@@ -30,15 +30,15 @@
 - Gate：容器环境下模拟重复投递/消费者重启/消息延迟或缺失，订单不重复释放，超时订单最终能关闭；数据库库存与状态满足不变量；明确缓存一致性边界和故障流程。
 - 依赖：Stage 2 PR #3 已通过并合并；Stage 3 PR #4 已审核 ACCEPT 并合并（merge SHA `1ee0bb3`）。历史任务书见 docs/09-stage-3-codex-task.md。
 
-## Stage 4 — Vue 演示、完整部署、性能验证与面试材料（当前已授权最终阶段）
+## Stage 4 — Vue 演示、完整部署、性能验证与面试材料（ACCEPT，PR #5 已合并）
 
 - 交付：Vue 3 + TypeScript + Element Plus 精简用户端/运营端；Docker Compose 完整启动；OpenAPI/README；API 自动测试与性能基准；最终架构图、知识点索引、关键类/调用链、可复现实验步骤、简历技术亮点的证据链接。
 - Gate：新环境按 README 启动并完成端到端演示；关键测试/CI 全绿；所述性能指标附命令、硬件/环境、原始结果；面试文档每项均可指到代码与测试。
-- 依赖：Stage 3 PR #4 已审核通过并合并。当前详细任务书见 docs/10-stage-4-codex-task.md。
+- 依赖：Stage 3 PR #4 已合并；Stage 4 PR #5 最终审核 ACCEPT 并合并（merge SHA `2d12de6`）。详细历史任务见 docs/10-stage-4-codex-task.md；最终审核记录和学习路线见 docs/handoffs/final-acceptance.md。
 
 ## 必须遵守的 PR 流程
 
-1. 当前阶段为 Stage 4：Codex 从已合并 PR #4 的最新 main 切出 codex/stage-4-ui-deployment-learning 分支，严格按本阶段任务书实施；完成后等待最终集中审查和合并。
+1. **当前四个开发阶段均已结束且合并；没有授权新的开发阶段。** 以下流程仅在用户日后明确提出新维护/改进任务时适用；不得依据历史 Stage 4 任务重复开发。
 2. 在分支上进行所有实现、格式化、测试和必要文档更新；不得提交 .env、密码、令牌或大体积构建产物。
 3. 完成 docs/handoffs/stage-N.md 交接报告，并创建 PR：标题格式 [Stage N] 主题。
 4. PR 中列出验收条款的完成状态、关键提交 SHA、测试环境和实测命令结果、已知风险、不在范围的事项；提供主要源码/测试路径。

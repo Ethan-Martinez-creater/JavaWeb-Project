@@ -1,6 +1,6 @@
 # EventFlow — 活动票务预约与核销平台
 
-Vue 3 / TypeScript / Element Plus 前端真实连接 Java 21 / Spring Boot 4.1.1 / MyBatis 模块化单体。主办方发布活动，用户预约、模拟支付并获得电子票，主办方核销，用户收到异步站内通知。MySQL 保证库存与订单事务，Redis 加速目录和限流，RabbitMQ + Outbox 可靠传递事件。Stage 1–3 已验收（PR #2/#3/#4）；Stage 4 交付等待最终集中审核，不代表已验收。
+Vue 3 / TypeScript / Element Plus 前端真实连接 Java 21 / Spring Boot 4.1.1 / MyBatis 模块化单体。主办方发布活动，用户预约、模拟支付并获得电子票，主办方核销，用户收到异步站内通知。MySQL 保证库存与订单事务，Redis 加速目录和限流，RabbitMQ + Outbox 可靠传递事件。**Stage 1–4 已全部审核 ACCEPT 并合并（PR #2/#3/#4/#5，最终合并 SHA `2d12de6`）**。本项目为求职演示与源码学习项目，不代表生产级部署。完整结果、遗留边界及建议阅读顺序见 [最终验收与学习导航](docs/handoffs/final-acceptance.md)。
 
 ## 从零运行完整应用
 
@@ -44,6 +44,7 @@ docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/doc
 | [前端](frontend/README.md) | 类型、lint、格式、单元测试、构建与身份/幂等设计 |
 | [E2E](e2e/README.md) | 干净项目中真实浏览器“发布→预约→支付→轮换→核销→通知” |
 | [性能实验](benchmarks/README.md) | 隔离数据、冷/热详情读取、p50/p95、原始样本和环境 |
+| [最终验收与学习导航](docs/handoffs/final-acceptance.md) | Stage 1–4 最终 ACCEPT、证据链接、保留风险与源码学习顺序 |
 | [Stage 4 交接](docs/handoffs/stage-4.md) | 实测计数、CI、持久化/兼容性、风险与完整证据矩阵 |
 | [OpenAPI](docs/openapi.yaml) / [API 契约](docs/02-domain-and-api-contract.md) | 真实字段、角色、归属、状态与错误 |
 | [学习总览](docs/learning/00-project-overview.md) | 架构图、源码地图、10 分钟学习演示 |

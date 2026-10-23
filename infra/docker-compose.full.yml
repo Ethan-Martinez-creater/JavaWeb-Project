@@ -75,15 +75,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test:
-        - CMD
-        - bash
-        - -ec
-        - >-
-          exec 3<>/dev/tcp/127.0.0.1/8080;
-          printf 'GET /actuator/health/readiness HTTP/1.0\r\n\r\n' >&3;
-          IFS= read -r status <&3;
-          [[ "$$status" == *" 200 "* ]]
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "2", "http://127.0.0.1:8080/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 12

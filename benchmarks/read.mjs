@@ -76,6 +76,8 @@ async function measure(ids, amount) {
 const startedAt = new Date().toISOString();
 const services = docker([...compose, 'ps', '--services', '--filter', 'status=running']).split(/\r?\n/);
 for (const service of ['mysql', 'redis', 'rabbitmq', 'backend', 'frontend']) assert.ok(services.includes(service), `${service} not running`);
+assert.equal(docker([...compose, 'port', 'frontend', '8080']), `127.0.0.1:${base.port || '80'}`,
+  'BENCH_URL must be the loopback port actually published by this isolated Compose project');
 const organizer = await api('POST', '/api/v1/auth/login', {
   email: process.env.DEV_ORGANIZER_EMAIL, password: process.env.DEV_ORGANIZER_PASSWORD,
 });

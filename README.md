@@ -1,6 +1,58 @@
 # EventFlow — 活动票务预约与核销平台
 
-Java 21 / Spring Boot 4.1.1 / MyBatis 的模块化单体。Stage 1/2/3 均已验收并合并（PR #2/#3/#4），后端具备 JWT/RBAC、活动目录、MySQL 订单库存与核销、Redis 缓存/限流、RabbitMQ 事务 Outbox/可靠消息与站内通知。**当前授权 Stage 4：Vue 3 前端、全栈部署、端到端测试、性能实验与面试学习材料**。任务书：[Stage 4](docs/10-stage-4-codex-task.md)；已验收 [Stage 3 交接](docs/handoffs/stage-3.md)。
+Vue 3 / TypeScript / Element Plus 前端真实连接 Java 21 / Spring Boot 4.1.1 / MyBatis 模块化单体。主办方发布活动，用户预约、模拟支付并获得电子票，主办方核销，用户收到异步站内通知。MySQL 保证库存与订单事务，Redis 加速目录和限流，RabbitMQ + Outbox 可靠传递事件。Stage 1–3 已验收（PR #2/#3/#4）；Stage 4 交付等待最终集中审核，不代表已验收。
+
+## 从零运行完整应用
+
+复用已有 **Docker Linux engine + Compose**；全栈构建在容器内完成。宿主开发/测试另需已有 JDK 21、Node 24、pnpm 11，不修改系统默认 Java，也无需安装原生 MySQL、Redis、RabbitMQ。首次构建会获取固定版本镜像、Maven 和前端依赖，需要网络及可用磁盘；不是预先编译的演示假页面。
+
+在仓库根目录运行 PowerShell 7：
+
+```powershell
+./infra/New-LocalStackEnv.ps1 -OutputPath .build-cache/stage4.env
+# 在本地编辑生成文件，确认 DEV_ORGANIZER_EMAIL / DEV_ORGANIZER_PASSWORD。
+# 文件只保存在本机、已忽略；不要提交或在公开日志中展示。
+docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/docker-compose.full.yml up --build -d --wait --wait-timeout 300
+```
+
+打开 **[http://127.0.0.1:8088](http://127.0.0.1:8088)**。五类服务共用隔离网络；仅站点 loopback 端口暴露，API 经 Nginx 同源代理。Spring Boot 启动时 Flyway 自动执行 V1→V2→V3，声明消息拓扑；显式 dev profile 从环境变量创建专属主办方。无公开管理员密码或自助升权入口。重复启动不覆盖原账号密码；初始化文件也拒绝覆盖。
+
+1. 用本地环境文件配置的主办方登录，创建草稿、编辑说明、增加场次/票种、发布。演示核销时把场次设为未来约 30 分钟，满足真实核销窗口。
+2. 退出，用公开注册创建 USER，再登录浏览活动、选择一张票预约、查看待付款订单并点击**模拟支付**。
+3. 在本人电子票页面生成/轮换核销码和二维码。明文仅在当前页面内存中显示，旧码立即失效；不要把码放进公开截图或日志。
+4. 切换所属主办方，手动粘贴当前码核销；切回 USER 刷新确认 USED，并查看稍后到达的支付通知。
+
+JWT 只存内存，页面刷新需重新登录；幂等键重试和会话边界见 [前端说明](frontend/README.md)。显示库存是查询时快照，预约最终由 MySQL 条件更新裁决。支付为状态演示，不处理真实资金。
+
+```powershell
+# 安全停止本项目，保留数据卷。下次用相同项目名和环境文件启动。
+docker compose --env-file .build-cache/stage4.env -p eventflow-full -f infra/docker-compose.full.yml stop
+```
+
+完整端口、密码、构建和隔离说明：[infra/README.md](infra/README.md)。持久卷受 Compose 项目名管理，独立于 Stage 3 开发卷；不操作宿主 MySQL 5.7/3306、原生 Redis 或其他项目，不删除卷。备份/删除数据需要明确单独安排，停止容器不是清空数据库。
+
+## 真实应用与验证入口
+
+下面截图来自真实浏览器连接完整 Compose 的公开活动页，未包含凭据或票码；不是渲染示意图。
+
+![EventFlow 桌面活动页](docs/screenshots/stage-4-events-desktop.png)
+
+![EventFlow 手机活动页](docs/screenshots/stage-4-events-mobile.png)
+
+| 入口 | 可复现内容 |
+|---|---|
+| [前端](frontend/README.md) | 类型、lint、格式、单元测试、构建与身份/幂等设计 |
+| [E2E](e2e/README.md) | 干净项目中真实浏览器“发布→预约→支付→轮换→核销→通知” |
+| [性能实验](benchmarks/README.md) | 隔离数据、冷/热详情读取、p50/p95、原始样本和环境 |
+| [Stage 4 交接](docs/handoffs/stage-4.md) | 实测计数、CI、持久化/兼容性、风险与完整证据矩阵 |
+| [OpenAPI](docs/openapi.yaml) / [API 契约](docs/02-domain-and-api-contract.md) | 真实字段、角色、归属、状态与错误 |
+| [学习总览](docs/learning/00-project-overview.md) | 架构图、源码地图、10 分钟学习演示 |
+| [Java 调用链](docs/learning/01-java-spring-code-tour.md) / [并发](docs/learning/02-orders-inventory-concurrency.md) / [中间件](docs/learning/03-redis-rabbitmq-reliability.md) | 从 FastAPI 经验切入 Java、事务与 SQL |
+| [面试问答](docs/learning/04-interview-qna.md) / [简历与演示](docs/learning/05-resume-and-demo.md) | 有源码依据的 22 题和证据约束的项目介绍 |
+
+PR 自动执行 [后端 CI](.github/workflows/backend-ci.yml) 与 [前端/全栈 CI](.github/workflows/full-stack-ci.yml)。真实中间件测试不自动 skip；最终运行链接和具体结果见交接报告。单机 Compose 没有生产 TLS、集群 HA、真实支付或未经实验的吞吐承诺。
+
+## 宿主开发模式与历史后端说明
 
 ## 环境与数据隔离
 

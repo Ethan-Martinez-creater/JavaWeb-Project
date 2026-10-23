@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "scenario": "organizer-publishes-user-pays-ticket-checkin-notification",
+  "testStatus": "passed",
+  "retry": 0,
+  "durationMs": 8445,
+  "completedSteps": [
+    "anonymous request returns structured 401",
+    "organizer edited the DRAFT event through the UI",
+    "dev organizer created a real event, session, SKU, then published it",
+    "real public Vue listing rendered on desktop and mobile without horizontal overflow",
+    "public registration created USER only and backend returned 403 for organizer API",
+    "USER browsed the published event and reserved one unit with the UI idempotency key",
+    "mock payment issued a ticket; rotating the QR code invalidated the prior code",
+    "organizer rejected the rotated-away code and successfully checked in with the current code",
+    "USER can see the same ticket in USED state",
+    "RabbitMQ consumer persisted and UI displayed the ORDER_PAID notification"
+  ],
+  "browserErrorNames": [],
+  "publicDetailStatus": 200,
+  "sensitiveValuesRecorded": false
+}

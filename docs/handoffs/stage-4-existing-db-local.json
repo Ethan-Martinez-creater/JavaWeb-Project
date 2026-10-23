@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-10-21T14:22:47.2740148Z",
+  "existingProject": "eventflow-stage1",
+  "database": "Existing Stage3 project named volume (not native MySQL5.7)",
+  "backend": "Stage4 built jar",
+  "health": "UP",
+  "catalogHttp200": true,
+  "publishedEvents": 2,
+  "flywayVersions": "1,2,3",
+  "users": 3,
+  "events": 2,
+  "orders": 3,
+  "tickets": 2,
+  "flywayObservation": "Validated 3 migrations; current version3; up to date, no migration necessary",
+  "backgroundMutationsDisabled": true,
+  "secretsIncluded": false
+}

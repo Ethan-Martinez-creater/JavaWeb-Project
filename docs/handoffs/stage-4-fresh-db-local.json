@@ -1,0 +1,11 @@
+{
+  "observedAt": "2026-10-23T02:27:51.2206989Z",
+  "project": "eventflow-e2e-local-20261023-final",
+  "sourceCommit": "8b4f39b77a9b16e75816c34ebbb16de2d6b38288",
+  "migrations": "1,2,3",
+  "users": 1,
+  "events": 0,
+  "orders": 0,
+  "tickets": 0,
+  "passed": true
+}

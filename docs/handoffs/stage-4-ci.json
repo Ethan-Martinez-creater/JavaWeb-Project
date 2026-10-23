@@ -1,0 +1,58 @@
+{
+  "observedAt": "2026-10-23T03:16:03.7093140Z",
+  "sourceCommit": "c41c05f0153a11bb531282fa668bc353fdf6f44a",
+  "environment": "GitHub Actions ubuntu-latest Linux, separate runners from local Windows checks",
+  "backend": {
+    "runId": 39893213836,
+    "jobId": 120217535141,
+    "conclusion": "success",
+    "tests": 43,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "report": "stage-4-backend-ci.json"
+  },
+  "frontend": {
+    "runId": 39893213842,
+    "jobId": 120217535491,
+    "conclusion": "success",
+    "tests": 13,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "report": "stage-4-frontend-ci.xml",
+    "checks": [
+      "typecheck",
+      "eslint",
+      "prettier",
+      "vitest",
+      "production build"
+    ]
+  },
+  "fullStack": {
+    "runId": 39893213842,
+    "jobId": 120217535209,
+    "conclusion": "success",
+    "browserPassed": 1,
+    "browserFailed": 0,
+    "browserSkipped": 0,
+    "browserDurationMs": 8457,
+    "lifecycleSteps": 10,
+    "persistencePassed": true,
+    "healthyServices": 5,
+    "artifactId": 12476045305,
+    "artifactSha256": "9454cac4033dd6756bdd4bbfd6405777ab735b0b085c71c174df99265b80516a",
+    "artifactDigestVerified": true,
+    "artifactAllowlistFiles": 6
+  },
+  "faults": {
+    "scenarioCount": 13,
+    "report": "stage-4-fault-ci.json"
+  },
+  "firstAttempt": {
+    "sourceCommit": "8cb58b624b6b00aee5d684ec4c786c169c0ccb4f",
+    "fullStackRunId": 39891526085,
+    "conclusion": "failure",
+    "reason": "Host runner could not write persistence report into root-owned browser bind mount. All business assertions had succeeded; report location fixed and full CI rerun."
+  }
+}

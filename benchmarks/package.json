@@ -1,0 +1,8 @@
+{
+  "name": "eventflow-benchmarks",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "scripts": { "read": "node read.mjs" },
+  "dependencies": { "autocannon": "8.0.0" }
+}

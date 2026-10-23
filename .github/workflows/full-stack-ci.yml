@@ -1,0 +1,87 @@
+name: Frontend and full-stack CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.21.0'
+          run_install: false
+      - name: Install locked frontend dependencies
+        run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+      - name: Check types, lint, format, tests and production build
+        run: |
+          pnpm typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm format:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm test --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-unit-results
+          path: frontend/test-results/
+          if-no-files-found: error
+
+  full-stack-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      COMPOSE_PROJECT_NAME: eventflow-e2e-ci-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate project-only secrets
+        run: ./infra/New-LocalStackEnv.ps1 -OutputPath .build-cache/stage4.env
+      - name: Build and start five real services on fresh project volumes
+        run: docker compose --env-file .build-cache/stage4.env -p $env:COMPOSE_PROJECT_NAME -f infra/docker-compose.full.yml up --build -d --wait --wait-timeout 300
+      - name: Real browser lifecycle against MySQL, Redis and RabbitMQ
+        run: docker compose --env-file .build-cache/stage4.env -p $env:COMPOSE_PROJECT_NAME -f infra/docker-compose.full.yml -f infra/docker-compose.e2e.yml run --build --rm e2e
+      - name: Verify migrations and persisted records across restart
+        run: ./infra/Verify-Persistence.ps1 -EnvFile .build-cache/stage4.env -Project $env:COMPOSE_PROJECT_NAME
+      - name: Capture service health
+        if: always()
+        run: |
+          docker compose --env-file .build-cache/stage4.env -p $env:COMPOSE_PROJECT_NAME -f infra/docker-compose.full.yml ps --format json | Set-Content -LiteralPath .build-cache/compose-health.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-stack-e2e-evidence
+          # Only these named reports/images, never the environment file or cache directory.
+          include-hidden-files: true
+          path: |
+            e2e/artifacts/playwright-report.json
+            e2e/artifacts/stage-4-e2e-evidence.json
+            e2e/artifacts/events-listing-desktop.png
+            e2e/artifacts/events-listing-mobile.png
+            .build-cache/stage4-persistence.json
+            .build-cache/compose-health.json
+          if-no-files-found: error
+      - name: Stop only this test project's services; retain volumes
+        if: always()
+        run: docker compose --env-file .build-cache/stage4.env -p $env:COMPOSE_PROJECT_NAME -f infra/docker-compose.full.yml stop

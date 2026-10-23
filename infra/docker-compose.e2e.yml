@@ -1,0 +1,17 @@
+services:
+  e2e:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile
+    init: true
+    shm_size: 1gb
+    environment:
+      BASE_URL: ${E2E_BASE_URL:-http://frontend:8080}
+      E2E_ORGANIZER_EMAIL: ${DEV_ORGANIZER_EMAIL:?Set DEV_ORGANIZER_EMAIL in the E2E env file}
+      E2E_ORGANIZER_PASSWORD: ${DEV_ORGANIZER_PASSWORD:?Set DEV_ORGANIZER_PASSWORD in the E2E env file}
+      PLAYWRIGHT_OUTPUT_DIR: /artifacts
+    volumes:
+      - ../e2e/artifacts:/artifacts
+    depends_on:
+      frontend:
+        condition: service_healthy

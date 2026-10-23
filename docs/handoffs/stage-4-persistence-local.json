@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-10-23T02:30:41.6106181Z",
+  "project": "eventflow-e2e-local-20261023-final",
+  "before": {
+    "migrations": "1,2,3",
+    "users": 2,
+    "events": 1,
+    "orders": 1,
+    "tickets": 1,
+    "checkins": 1,
+    "notifications": 1
+  },
+  "after": {
+    "migrations": "1,2,3",
+    "users": 2,
+    "events": 1,
+    "orders": 1,
+    "tickets": 1,
+    "checkins": 1,
+    "notifications": 1
+  },
+  "passed": true,
+  "operation": "restart; no volume removal or schema/data reset"
+}

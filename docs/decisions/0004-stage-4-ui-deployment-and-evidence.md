@@ -1,0 +1,18 @@
+# ADR 0004：同源演示前端、隔离部署和可核对证据
+
+状态：Stage 4 实现决策，等待阶段集中验收。保留 ADR 0001–0003 的后端不变量。
+
+## 决策
+
+1. Vue 3/TypeScript 按 feature 分包，API DTO 与后端契约显式对应。路由角色守卫帮助导航，授权和归属仍由 Spring Security/Service 校验。草稿刷新需要最小补充 `GET /organizer/events/{id}`，使用既有 `findOwned`，非所有者/不存在同为 404；不修改数据库迁移、公开缓存或其它模块。
+2. JWT 仅保存在 Pinia 当前页面内存，刷新后重新登录；不存 localStorage/sessionStorage/cookie，也无 refresh token。代价是演示切换身份需要明确退出/登录，收益是避免持久 bearer 凭据残留。内存不能阻止已执行的 XSS；模板使用 Vue 转义，不渲染用户 HTML，依赖版本锁定，同源代理减少跨域配置。核销码也只在当前已授权页面内存出现，轮换/登出时清除，不进入日志或公开截图。
+3. 预约使用当前主体和 SKU 的稳定客户端幂等键；请求未确定结果时沿用原键重试，按钮在提交中禁用，成功后导航至服务器订单。使用 `crypto.getRandomValues` 生成 128 bit 随机十六进制键，兼容 Compose 服务名的 HTTP 浏览器环境；不依赖仅安全上下文可用的 `randomUUID`，也不回退到 `Math.random`。跨刷新行为以实际实现的会话/幂等存储约束和前端 README 为准，不把 UI 禁用当成数据库幂等保证。
+4. 五类服务同一 Compose 网络，Nginx 同源 `/api/v1` 及健康检查代理；仅 loopback 站点端口对宿主开放。镜像多阶段构建、运行非 root、外部必填秘密。仅显式 dev profile 和人工环境凭据初始化主办方。项目名隔离持久卷；E2E、性能与个人演示各用不同项目，不连接 Stage 3 开发卷或原生 MySQL 5.7。
+5. Playwright 在版本匹配的官方浏览器容器内执行真实 UI/API/DB/MQ 闭环；unit mock 仅用于前端边界测试。后端 Wrapper 真实 Testcontainers 回归保留原有 42 项，新增草稿读取授权测试。CI 三个独立 Gate 均需成功，报告上传，不用 skip 处理基础设施问题。
+6. 读实验固定 100 个活动、5 连接、每阶段 500 次详情读取。JVM/SQL 预热后控制 Redis generation 比较元数据冷/热，保存每次延迟和 Redis 统计并校验 miss 数。短轮次只用于行为和延迟观察，不声称生产吞吐或 Redis 命中后不访问 SQL。1000 用户写正确性及可靠性沿用并重新运行已验收测试。
+
+构建可复现性：Temurin builder 原本没有 unzip，Wrapper 会自动切换 tar.gz，却仍以 properties 中固定的 ZIP SHA 校验。只在镜像构建阶段安装 unzip，保留 Wrapper/Maven 版本与 checksum；宿主不安装软件。pnpm 11 初次解析选择官方稳定 Vite 8.3.5 时自动生成仅该固定版本的 `minimumReleaseAgeExclude`（发布未满 24 小时），提交此项目配置和完整 integrity lock，Docker 在安装前一并复制；没有关闭全局/全部依赖的发布时长策略。后续依赖升级应重新评估并移除已无必要的单版本例外，参考 [pnpm 官方依赖策略](https://pnpm.io/settings#minimumreleaseage)。
+
+## 限制
+
+单实例开发演示无生产 TLS、密钥托管、集群 HA 或真实支付，核销手动粘贴码；不要公开 dev 部署或演示凭据。生成的本地环境、缓存、浏览器报告与持久卷保留在项目范围；停止服务不删除卷，凭据变更不自动重写已有数据库账户。学习资料与简历表述只引用源码和已执行证据，不代表最终验收已通过。

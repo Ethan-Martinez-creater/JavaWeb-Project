@@ -109,6 +109,15 @@ public class EventService {
     return detail(mapper.findOwned(event.getId(), ownerId, false));
   }
 
+  @Transactional(readOnly = true)
+  public EventResponse ownedDetail(long id, long ownerId, boolean admin) {
+    EventEntity event = mapper.findOwned(id, ownerId, admin);
+    if (event == null) {
+      throw missing();
+    }
+    return detail(event);
+  }
+
   @Transactional
   public EventResponse edit(long id, long ownerId, boolean admin, EditEvent input) {
     EventEntity event = draft(id, ownerId, admin);

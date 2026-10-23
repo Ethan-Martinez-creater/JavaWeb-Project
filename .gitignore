@@ -2,6 +2,11 @@
 **/target/
 .build-cache/
 .worktrees/
+**/node_modules/
+**/dist/
+**/playwright-report/
+**/test-results/
+**/.pnpm-store/
 
 # Local environment configuration and credentials
 .env

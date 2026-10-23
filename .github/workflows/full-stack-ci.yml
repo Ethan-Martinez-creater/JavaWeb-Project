@@ -72,8 +72,13 @@ jobs:
         if: always()
         with:
           name: full-stack-e2e-evidence
+          # Only these named reports/images, never the environment file or cache directory.
+          include-hidden-files: true
           path: |
-            e2e/artifacts/
+            e2e/artifacts/playwright-report.json
+            e2e/artifacts/stage-4-e2e-evidence.json
+            e2e/artifacts/events-listing-desktop.png
+            e2e/artifacts/events-listing-mobile.png
             .build-cache/stage4-persistence.json
             .build-cache/compose-health.json
           if-no-files-found: error

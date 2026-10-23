@@ -51,7 +51,7 @@ docker compose --env-file .build-cache/stage4.env -p $e2eProject -f infra/docker
 
 首次镜像和包需要网络下载。E2E 项目名唯一可保证第一次运行是空库；CI 在每个全新 runner 上运行，因此 CI 的 E2E 库也是空的。对失败运行，请保留输出和卷；修复后另建项目名复跑。
 
-持久化报告写入 `.build-cache/stage4-persistence.json`；浏览器报告/截图在 `e2e/artifacts/`。Linux 的 bind mount 可能由浏览器容器用户创建，宿主报告采用宿主自己的目录，避免依赖 chmod 或提权。CI 会同时上传两处证据。
+持久化报告写入 `.build-cache/stage4-persistence.json`；浏览器报告/截图在 `e2e/artifacts/`。Linux 的 bind mount 可能由浏览器容器用户创建，宿主报告采用宿主自己的目录，避免依赖 chmod 或提权。CI 按文件名明确列出六个报告/图片，并启用 `include-hidden-files` 以包含点目录中的两份报告；不会上传整个缓存目录或环境文件，参见 [artifact 官方说明](https://github.com/actions/upload-artifact/tree/v4#uploading-hidden-files)。
 
 ## 镜像与秘密
 

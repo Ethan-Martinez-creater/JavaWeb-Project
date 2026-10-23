@@ -1,0 +1,45 @@
+{
+  "observedAt": "2026-10-23T03:16:03.6225444Z",
+  "sourceCommit": "c41c05f0153a11bb531282fa668bc353fdf6f44a",
+  "environment": "GitHub Actions ubuntu-latest Linux runner, real Testcontainers MySQL Redis RabbitMQ",
+  "runUrl": "https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39893213836",
+  "jobId": 120217535141,
+  "command": "./mvnw --batch-mode spotless:check verify",
+  "artifactId": 12476000709,
+  "artifactSha256": "7103d5a753cad64280e41d9fd28ba79d35d58df05bda3e91a62675613214c078",
+  "artifactDigestVerified": true,
+  "buildSuccess": true,
+  "tests": 43,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "name": "com.eventflow.Stage1IntegrationTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 35.468,
+      "java": "21.0.12.1"
+    },
+    {
+      "name": "com.eventflow.Stage2IntegrationTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 14.971,
+      "java": "21.0.12.1"
+    },
+    {
+      "name": "com.eventflow.Stage3IntegrationTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 50.393,
+      "java": "21.0.12.1"
+    }
+  ]
+}

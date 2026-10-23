@@ -5,7 +5,7 @@
 ## 元数据
 
 - 分支：`codex/stage-4-ui-deployment-learning`；Base：`3470d5dc7ee19d57739e0391a45694bcf9af9ff1`（含 Stage 3 PR #4 merge `1ee0bb3efc60fbba55e224d2e533b499c20b3cb9`）。
-- PR：[Stage 4 #5](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/pull/5)，保持 open、未合并。首轮 CI 源 SHA `8cb58b624b6b00aee5d684ec4c786c169c0ccb4f`；最终 Head 以 PR commits/checks 为准（报告无法包含自己的提交 SHA）。
+- PR：[Stage 4 #5](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/pull/5)，保持 open、未合并。归档的完整 Linux CI 源 SHA：`c41c05f0153a11bb531282fa668bc353fdf6f44a`；其后的提交只补充交接和证据。最终 Head 以 PR commits/checks 为准（报告无法包含自己的提交 SHA），同时在交付消息给出。
 - 本机执行环境：Codex Desktop 在用户 Windows 10 宿主执行，通过 Docker Desktop Linux engine 运行隔离容器；不是远程 Linux runner，也没有把云端检测误当用户本机。JDK 21.0.9 仅进程内复用，Wrapper Maven 3.8.6，Node 24.15.0、pnpm 11.21.0、Docker 29.7.2、Compose 5.3.1。默认 Java 17.0.2 未改，原生 `MySQL` 服务保持 Running。
 - Docker 实验资源：Intel i5-8300H / 8 逻辑核，Linux engine 8 vCPU、8268677120 bytes RAM；性能 JSON 同时保存 Node 观察到的宿主内存/OS。
 - 数据库迁移：V1/V2/V3 保持原样，无 V4。沿用 MySQL 8.4.11、Redis 8.4.7、RabbitMQ 4.3.6 的既有 digest。
@@ -24,7 +24,7 @@
 | 重启后持久化 | PASS | [重启原始 JSON](stage-4-persistence-local.json)：迁移 1,2,3；users=2、events/orders/tickets/checkins/notifications 各 1，重启前后相同 |
 | 冷/热缓存读性能 | PASS（本机各 500 请求、零错误） | [完整原始样本](../../benchmarks/results/stage-4-read-local.json)，p50/p95：冷 14.936/27.715 ms，热 10.001/17.075 ms；详情 miss=500/0 |
 | 学习/架构/面试/简历/OpenAPI | PASS（静态源码核对） | 6 篇学习文档、22 题、19 API paths/22 operations、131 本地 `$ref` 解析；PyYAML 校验 |
-| 三项 CI Gate | UNVERIFIED（待 PR 运行） | 现有后端 Workflow + 前端/全栈 Workflow；无基础设施自动 skip |
+| 三项 CI Gate | PASS（Linux 全部成功） | [后端 run](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39893213836)、[前端/全栈 run](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39893213842)、[CI 证据索引](stage-4-ci.json)；无基础设施自动 skip |
 
 ## 已执行后端与兼容性结果
 
@@ -57,6 +57,29 @@ E2E 使用全新 `eventflow-e2e-*` 项目，性能使用 `eventflow-bench-*`；�
 
 两阶段 Redis INFO hits 都是 1500（含 generation GET 等），不能把此原始计数直接当应用命中率；隔离项目无其它读流量时按 500−miss 推算详情 hit。这里“冷”指 Redis 元数据未命中，JVM/SQL 已预热。这是闭环固定负载实验，无最大吞吐、生产容量或高可用结论。实验后仅 stop 本项目，卷保留；未对共享/公网服务压测。
 
+## Linux CI 与证据核验
+
+第二轮完整运行于 2026-10-23。后端使用 Ubuntu runner 的 Temurin 21.0.12.1 和仓库 Maven 3.8.6 Wrapper，**不是修改宿主 JDK**；前端使用 workflow 配置的 Node 24、pnpm 11.21.0。真实 MySQL 8.4.11/Redis/RabbitMQ 由 Testcontainers 或隔离 Compose 项目提供，未替换为 H2/stub。
+
+| Gate / 命令 | 真实结果 | 可核对证据 |
+|---|---|---|
+| [backend verify](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39893213836/job/120217535141)：`./mvnw --batch-mode spotless:check verify` | 14 + 17 + 12 = 43；failures/errors/skipped 全 0；BUILD SUCCESS | [Surefire 脱敏汇总](stage-4-backend-ci.json)，原始 XML 在该 run 的 surefire-reports artifact |
+| [frontend](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39893213842/job/120217535491)：frozen install/typecheck/lint/format/unit/build | 全通过；13 tests，failures/errors/skipped 全 0 | [原始 JUnit](stage-4-frontend-ci.xml) |
+| [full-stack-e2e](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39893213842/job/120217535209)：Compose build/up、browser、`Verify-Persistence.ps1`、health | 1 passed，0 failed/skipped，8457 ms；10 个业务/安全观察；重启持久化相同；5 服务 healthy | [浏览器](stage-4-browser-ci.json)、[流程](stage-4-e2e-ci.json)、[持久化](stage-4-persistence-ci.json)、[健康状态](stage-4-compose-health-ci.json) |
+| 同次后端的 1000 HTTP 并发和故障注入 | 100 创建/900 SOLD_OUT/余量 0；13 条故障场景观察 | [写并发](stage-4-concurrency-ci.json)、[故障原始 JSON](stage-4-fault-ci.json) |
+
+归档下载的全部 artifact 先与 GitHub 返回的 SHA256 比较，再按明确 entry 名读取；未把任意 ZIP 路径写入文件系统。全栈 artifact ID `12476045305` / SHA256 `9454cac4033dd6756bdd4bbfd6405777ab735b0b085c71c174df99265b80516a`，核验实际只含六个预期报告/图片，环境秘密不在其中。测试源 SHA、run/job/artifact ID 及失败历史见 [stage-4-ci.json](stage-4-ci.json)。首轮 [39891526085](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/actions/runs/39891526085) 的报告落盘权限失败保留；修复后完整重新运行，没有修改或隐藏首轮结论。
+
+交付核验已完成：
+
+- [x] Vue 真实业务闭环、USER-only 注册/角色安全、中文响应式与真实截图。
+- [x] 五服务空库迁移、既有 Stage3 库兼容和重启持久化。
+- [x] 本机/CI 后端 43、前端 13、真实浏览器及 1000 请求证据。
+- [x] 冷/热读性能的脚本、原始逐响应样本、环境与解释边界。
+- [x] README、API/OpenAPI、架构/调用链、六篇学习材料、22 题与面试演示。
+- [x] 本机默认 Java 17.0.2、原生 MySQL Running；没有系统升级、全局配置修改或卷删除。Stage4 本轮测试栈已 stop，卷保留。
+- [x] 单一 Stage4 PR 保持 open，等待 ChatGPT 最终集中验收；不自行合并。
+
 ## 设计取舍、风险与未验证边界
 
 - [ADR0004](../decisions/0004-stage-4-ui-deployment-and-evidence.md)：JWT 内存、幂等键会话边界、同源代理、隔离数据与证据方法。历史 ADR0001–0003、交接和 JSON 均保留。
@@ -64,13 +87,13 @@ E2E 使用全新 `eventflow-e2e-*` 项目，性能使用 `eventflow-bench-*`；�
 - 内存 JWT 降低持久残留，但不抵御已执行 XSS；刷新重新登录。sessionStorage 只存幂等键、主体/SKU 标识；存储被禁用时只有当前页面内存重试保证，不能声称跨刷新安全。
 - 单机 Compose 没有生产 TLS、秘密托管、多节点 HA、真实支付/退款、强一致缓存或 exactly-once 消息；手动粘贴核销码，不申请摄像头权限。不对公网或共享服务压测。
 - 经当前回归未发现 P0/P1；已知 P2：Element Plus 主 bundle 957.81 kB（gzip 307.30 kB），触发 Vite 默认 500 kB 提醒。路由页面已按需加载；目前优先清楚的接入，后续可评估按需组件引入并以实际构建验证，不声称已完成包体优化。
-- Docker Desktop 启动前 daemon 不可用；按既有授权正常启动已安装应用，未改 WSL/Windows 功能或 Docker 系统配置。首次构建拉取固定镜像/项目依赖；主机无安装/升级。缓存/临时文件限定 D 盘。
+- Docker Desktop 启动前 daemon 不可用；按既有授权正常启动已安装应用，未改 WSL/Windows 功能或 Docker 系统配置。首次构建拉取固定镜像/项目依赖；主机无安装/升级。显式宿主 Maven/pnpm/npm/浏览器缓存与临时文件均指向 D 盘项目 `.build-cache`；Docker 镜像/卷由现有 Desktop 存储管理，未迁移其位置。
 - 本机首次 pnpm 获取被既有进程失效代理阻断（ECONNREFUSED），后续仅在命令进程中改用官方 registry/清除失效代理，未修改全局 npm/pnpm 配置。
 - 实际调试修复：builder 缺少 unzip 导致 Wrapper 切换归档但 checksum 不匹配；补充仅构建阶段 unzip。受保护的 readiness 子路径返回 401，探针改用公开的整体 health；Nginx 默认 upstream Host 含下划线被 Tomcat 拒绝 400，显式传递合法 Host。首次冷库初始化与大镜像解压竞争磁盘，曾触发启动期限，保留卷后正常恢复，未重置数据。
 - 浏览器先后暴露 fixture 参数声明、Element Plus 原生 input 属性转发、HTTP 服务名不提供 randomUUID、重复嵌套 alert。分别修正测试声明/定位、以 getRandomValues 保持 128 bit 安全随机键并增加单测、保留单一 alert；没有跳过业务断言。失败报告保存在本机 `.build-cache`，最终证据以完整成功运行和 CI 为准。
 - 首轮 Linux CI 的前端、43 项后端及浏览器闭环通过，但持久化报告落盘失败：Linux bind mount 的浏览器目录由 root 创建，runner 不能写入。持久化脚本默认报告改到宿主自有 `.build-cache/stage4-persistence.json`，并纳入 artifact；不 chmod、不提权、不放宽数据库断言。首轮失败保留在 Actions 历史，最终结果另列。
 - 停止项目保留卷；修改环境文件密码不会更新已有数据库账户。敏感本地环境文件、缓存、JWT、明文码均不提交。真实截图仅包含公开页。
-- 当前待完成的运行验证以矩阵 UNVERIFIED 为准；最终交付前必须用真实结果替换，不能把本草稿作为验收完成声明。
+- 所列阶段内验证已执行并归档，不代表人类阶段审核已经通过。最终 Head 的后续 CI 以 [PR checks](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/pull/5/checks) 为准；生产 HA/真实支付等边界未在本阶段验证。
 
 ## 推荐阅读与审核定位
 

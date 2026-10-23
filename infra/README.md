@@ -51,6 +51,8 @@ docker compose --env-file .build-cache/stage4.env -p $e2eProject -f infra/docker
 
 首次镜像和包需要网络下载。E2E 项目名唯一可保证第一次运行是空库；CI 在每个全新 runner 上运行，因此 CI 的 E2E 库也是空的。对失败运行，请保留输出和卷；修复后另建项目名复跑。
 
+持久化报告写入 `.build-cache/stage4-persistence.json`；浏览器报告/截图在 `e2e/artifacts/`。Linux 的 bind mount 可能由浏览器容器用户创建，宿主报告采用宿主自己的目录，避免依赖 chmod 或提权。CI 会同时上传两处证据。
+
 ## 镜像与秘密
 
 `infra/.env.example` 是空值模板，不包含可用凭据。密码、JWT 密钥、数据库用户名和开发主办方凭据都通过本机环境文件传入容器；启动时缺失的必须值会被 Compose 拒绝。不要提交 `.build-cache/stage4.env`，不要把实际秘密粘到 issue、日志或截图。

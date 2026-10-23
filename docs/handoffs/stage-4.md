@@ -5,7 +5,7 @@
 ## 元数据
 
 - 分支：`codex/stage-4-ui-deployment-learning`；Base：`3470d5dc7ee19d57739e0391a45694bcf9af9ff1`（含 Stage 3 PR #4 merge `1ee0bb3efc60fbba55e224d2e533b499c20b3cb9`）。
-- PR / 最终 SHA / Linux CI：完成本轮实际运行后填写，不能从当前草稿推断 PASS。
+- PR：[Stage 4 #5](https://github.com/Ethan-Martinez-creater/JavaWeb-Project/pull/5)，保持 open、未合并。首轮 CI 源 SHA `8cb58b624b6b00aee5d684ec4c786c169c0ccb4f`；最终 Head 以 PR commits/checks 为准（报告无法包含自己的提交 SHA）。
 - 本机执行环境：Codex Desktop 在用户 Windows 10 宿主执行，通过 Docker Desktop Linux engine 运行隔离容器；不是远程 Linux runner，也没有把云端检测误当用户本机。JDK 21.0.9 仅进程内复用，Wrapper Maven 3.8.6，Node 24.15.0、pnpm 11.21.0、Docker 29.7.2、Compose 5.3.1。默认 Java 17.0.2 未改，原生 `MySQL` 服务保持 Running。
 - Docker 实验资源：Intel i5-8300H / 8 逻辑核，Linux engine 8 vCPU、8268677120 bytes RAM；性能 JSON 同时保存 Node 观察到的宿主内存/OS。
 - 数据库迁移：V1/V2/V3 保持原样，无 V4。沿用 MySQL 8.4.11、Redis 8.4.7、RabbitMQ 4.3.6 的既有 digest。
@@ -68,6 +68,7 @@ E2E 使用全新 `eventflow-e2e-*` 项目，性能使用 `eventflow-bench-*`；�
 - 本机首次 pnpm 获取被既有进程失效代理阻断（ECONNREFUSED），后续仅在命令进程中改用官方 registry/清除失效代理，未修改全局 npm/pnpm 配置。
 - 实际调试修复：builder 缺少 unzip 导致 Wrapper 切换归档但 checksum 不匹配；补充仅构建阶段 unzip。受保护的 readiness 子路径返回 401，探针改用公开的整体 health；Nginx 默认 upstream Host 含下划线被 Tomcat 拒绝 400，显式传递合法 Host。首次冷库初始化与大镜像解压竞争磁盘，曾触发启动期限，保留卷后正常恢复，未重置数据。
 - 浏览器先后暴露 fixture 参数声明、Element Plus 原生 input 属性转发、HTTP 服务名不提供 randomUUID、重复嵌套 alert。分别修正测试声明/定位、以 getRandomValues 保持 128 bit 安全随机键并增加单测、保留单一 alert；没有跳过业务断言。失败报告保存在本机 `.build-cache`，最终证据以完整成功运行和 CI 为准。
+- 首轮 Linux CI 的前端、43 项后端及浏览器闭环通过，但持久化报告落盘失败：Linux bind mount 的浏览器目录由 root 创建，runner 不能写入。持久化脚本默认报告改到宿主自有 `.build-cache/stage4-persistence.json`，并纳入 artifact；不 chmod、不提权、不放宽数据库断言。首轮失败保留在 Actions 历史，最终结果另列。
 - 停止项目保留卷；修改环境文件密码不会更新已有数据库账户。敏感本地环境文件、缓存、JWT、明文码均不提交。真实截图仅包含公开页。
 - 当前待完成的运行验证以矩阵 UNVERIFIED 为准；最终交付前必须用真实结果替换，不能把本草稿作为验收完成声明。
 

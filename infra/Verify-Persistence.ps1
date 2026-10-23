@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory)][string]$EnvFile,
     [Parameter(Mandatory)][ValidatePattern('^eventflow-(e2e|bench|full)[a-z0-9-]*$')][string]$Project,
-    [string]$OutputPath = 'e2e/artifacts/persistence.json'
+    # Browser artifacts may be owned by the container user on Linux bind mounts.
+    [string]$OutputPath = '.build-cache/stage4-persistence.json'
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="13" failures="0" errors="0" time="0.051997341">
+    <testsuite name="src/api/client.test.ts" timestamp="2026-10-23T02:48:17.694Z" hostname="runnervm8k3b6" tests="5" failures="0" errors="0" skipped="0" time="0.032509213">
+        <testcase classname="src/api/client.test.ts" name="API error conversion &gt; preserves backend diagnostics while providing a readable rate-limit message" time="0.002655003">
+        </testcase>
+        <testcase classname="src/api/client.test.ts" name="API error conversion &gt; shows local validation errors rather than replacing them with a network message" time="0.000428346">
+        </testcase>
+        <testcase classname="src/api/client.test.ts" name="API error conversion &gt; reports a bounded request timeout as an ambiguous request result" time="0.024551471">
+        </testcase>
+        <testcase classname="src/api/client.test.ts" name="API error conversion &gt; clears only the token that received the unauthorized response" time="0.00250028">
+        </testcase>
+        <testcase classname="src/api/client.test.ts" name="API error conversion &gt; does not clear a newer login when an older request returns 401 late" time="0.000851956">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/features/auth/access.test.ts" timestamp="2026-10-23T02:48:17.695Z" hostname="runnervm8k3b6" tests="3" failures="0" errors="0" skipped="0" time="0.003579407">
+        <testcase classname="src/features/auth/access.test.ts" name="route access rules &gt; sends an anonymous visitor to login and remembers the destination" time="0.001730757">
+        </testcase>
+        <testcase classname="src/features/auth/access.test.ts" name="route access rules &gt; allows only the listed role and denies a logged-in user without it" time="0.000309307">
+        </testcase>
+        <testcase classname="src/features/auth/access.test.ts" name="route access rules &gt; leaves public event pages available without a session" time="0.000172055">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/features/orders/idempotency.test.ts" timestamp="2026-10-23T02:48:17.695Z" hostname="runnervm8k3b6" tests="4" failures="0" errors="0" skipped="0" time="0.010169834">
+        <testcase classname="src/features/orders/idempotency.test.ts" name="reservation idempotency keys &gt; supports HTTP browser contexts that do not expose randomUUID" time="0.007084596">
+        </testcase>
+        <testcase classname="src/features/orders/idempotency.test.ts" name="reservation idempotency keys &gt; detects when session storage cannot retain a key" time="0.000515209">
+        </testcase>
+        <testcase classname="src/features/orders/idempotency.test.ts" name="reservation idempotency keys &gt; reuses a key after an ambiguous retry and separates different ticket types" time="0.000549673">
+        </testcase>
+        <testcase classname="src/features/orders/idempotency.test.ts" name="reservation idempotency keys &gt; removes a key only after a reservation response succeeds" time="0.00034355">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/utils/requestGeneration.test.ts" timestamp="2026-10-23T02:48:17.696Z" hostname="runnervm8k3b6" tests="1" failures="0" errors="0" skipped="0" time="0.005738887">
+        <testcase classname="src/utils/requestGeneration.test.ts" name="request generations &gt; ignores an older detail response that finishes after the current route response" time="0.004150587">
+        </testcase>
+    </testsuite>
+</testsuites>
+

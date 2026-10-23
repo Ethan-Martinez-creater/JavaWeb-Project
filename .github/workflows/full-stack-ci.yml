@@ -74,6 +74,7 @@ jobs:
           name: full-stack-e2e-evidence
           path: |
             e2e/artifacts/
+            .build-cache/stage4-persistence.json
             .build-cache/compose-health.json
           if-no-files-found: error
       - name: Stop only this test project's services; retain volumes

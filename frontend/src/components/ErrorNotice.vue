@@ -8,7 +8,7 @@ const diagnostics = computed(() => (props.error instanceof ApiFailure ? props.er
 </script>
 
 <template>
-    <section class="error-notice" role="alert">
+    <section class="error-notice">
         <el-alert :title="message" type="error" :closable="false" show-icon />
         <details v-if="diagnostics" class="error-details">
             <summary>查看错误诊断</summary>

@@ -255,7 +255,10 @@ test('real UI publishes, reserves, pays, rotates, checks in, and notifies', asyn
   await page.getByTestId('checkin-submit').click();
   const rejectedCheckinResponse = await rejectedCheckinResponsePromise;
   expect(rejectedCheckinResponse.status()).toBe(404);
-  await expect(page.getByRole('alert')).toBeVisible();
+  // Ignore transient login toasts; assert the persistent API failure notice.
+  const checkinFailureAlert = page.locator('.error-notice').getByRole('alert');
+  await expect(checkinFailureAlert).toHaveCount(1);
+  await expect(checkinFailureAlert).toBeVisible();
   await expect(page.getByTestId('checkin-result-status')).toBeHidden();
   await fieldInput(page, 'checkin-code-input').fill(currentCode);
   const successfulCheckinResponsePromise = page.waitForResponse(
